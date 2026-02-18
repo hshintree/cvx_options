@@ -1,0 +1,317 @@
+================================================================================
+  CVX_OPTIONS: CURRENT STATE EXPLANATION
+  Last updated: 2026-02-18
+================================================================================
+
+
+================================================================================
+1. DISTRIBUTIONS USED FOR MU AND SIGMA
+================================================================================
+
+There are TWO separate forecast systems in the codebase, and the backtest
+actually uses a hybrid of both.  This is important to understand clearly.
+
+
+A) RND Forecasts (data/forecasts.py → compute_rnd_forecasts)
+-------------------------------------------------------------
+
+PURPOSE: Extract expected returns and covariance from the current option chain.
+
+DISTRIBUTION FOR S_T (underlying price at expiry):
+
+  Attempt 1: Breeden-Litzenberger (BL) risk-neutral density
+    - Takes the filtered call option prices C(K) as a function of strike K
+    - Smooths with a cubic spline (UnivariateSpline, s=len(K))
+    - Enforces monotone non-increasing C(K) (no-arb)
+    - Computes second derivative: q(K) = exp(r*T) * d²C/dK²
+    - This gives the risk-neutral PDF of S_T
+    - Samples S_T via inverse-CDF from this discrete density (10,000 draws)
+
+  IN PRACTICE: BL is currently ALWAYS REJECTED because:
+    - yfinance lastPrice data is too noisy (stale, asynchronous)
+    - mean(S_T) from BL is 611.8 vs spot 682.8 (10.4% off)
+    - Sanity check tolerance is max(3%, min(15%, 40%*sqrt(T))) = 6.3%
+    - So the code falls back to...
+
+  Actual distribution used: LOGNORMAL with implied volatility
+    - S_T = S_0 * exp((r - σ²/2)*T + σ*sqrt(T)*Z), where Z ~ N(0,1)
+    - σ = ATM implied volatility from BS inversion = 0.1918 (19.2% annualized)
+    - r = 0.05 (5% risk-free rate)
+    - T = DTE/365 = 9/365 = 0.0247 years
+    - 10,000 Monte Carlo draws
+
+HOW MU IS COMPUTED (RND):
+  - For each Monte Carlo draw of S_T:
+      r_spy  = S_T / S_0 - 1
+      r_call = max(S_T - K, 0) / C_0 - 1    (terminal payoff / premium - 1)
+      r_put  = max(K - S_T, 0) / P_0 - 1     (terminal payoff / premium - 1)
+      r_cash = exp(r * T) - 1
+  - mu = sample mean across 10,000 draws
+  - Then clipped to [-10%, +10%] for SPY, [-30%, +30%] for options
+
+HOW SIGMA IS COMPUTED (RND):
+  - Sigma = sample covariance of the 10,000 return vectors [r_spy, r_call, r_put, r_cash]
+  - Then option volatilities are RESCALED to exactly 2x SPY vol:
+      scale = (2 * std_spy) / std_option
+      Sigma[:, option_col] *= scale
+      Sigma[option_col, :] *= scale
+  - This artificial rescaling means the RND Sigma does NOT reflect the true
+    variance of hold-to-expiry option returns (which is much higher)
+
+WHY SPY MU IS NEAR ZERO IN THE RND:
+  The lognormal uses RISK-NEUTRAL drift r = 5%.  Per period:
+    E[r_spy] = exp(r*T) - 1 = exp(0.05 * 9/365) - 1 = 0.0012 (0.12%)
+  This is essentially the risk-free rate.  Under risk-neutral pricing,
+  E[r_spy] ≈ r_cash by construction.  There is NO equity risk premium
+  in a risk-neutral distribution.  This is mathematically correct but
+  economically wrong for a real-world portfolio — SPY historically
+  earns ~8-10% annually above this.
+
+
+B) Backtest Forecasts (backtest.py → rolling historical)
+---------------------------------------------------------
+
+The backtest does NOT use the RND mu or Sigma directly (except for the
+first 8 periods as a cold-start fallback).
+
+MU IN THE BACKTEST:
+  - Rolling mean of the past 26 periods of REALIZED synthetic returns
+  - Then shrunk 50% toward the cash rate:
+      mu_t = 0.5 * rolling_mean + 0.5 * r_cash
+  - This is the "physical measure" estimate — it captures the actual
+    equity risk premium from historical data
+
+SIGMA IN THE BACKTEST:
+  - Rolling sample covariance of the past 26 periods of REALIZED returns
+  - Falls back to the RND Sigma if the rolling covariance is degenerate
+  - This properly captures the extreme variance of binary option payoffs
+
+IS THE ROLLING CORRECT?
+  Yes.  At each period t, the code computes:
+    hist_slice = returns.iloc[max(0, t-26) : t]    # PAST returns only
+    mu_roll = hist_slice.mean()
+    Sigma_hist = hist_slice.cov()
+  It strictly uses returns from periods [t-26, t-1], never peeking at
+  period t or beyond.  No look-ahead bias in the rolling window.
+
+  However, there IS a subtlety: the synthetic returns themselves use a
+  FIXED implied volatility (19.2%) for BS pricing across all 71 periods
+  (4 years).  In reality, IV varies over time.  The SPY returns are real,
+  but the option return magnitudes are distorted by the constant-IV
+  assumption.
+
+
+================================================================================
+2. DATA INVENTORY
+================================================================================
+
+A) SPY Daily Prices
+--------------------
+  Source:       yfinance ("SPY")
+  File:         data/raw/spy_daily.parquet
+  Rows:         2,797 trading days
+  Date range:   2015-01-02 to 2026-02-17
+  Columns:      open, high, low, close, volume
+  Price range:  $154.98 to $695.49
+
+  Used in backtest: last 4 years (lookback_years=4.0)
+    → ~1,000 daily closes
+    → 71 non-overlapping 14-day periods (2022-03-10 to 2026-02-05)
+
+B) Cash Rate (Risk-Free)
+--------------------------
+  Source:       yfinance ("^IRX", 13-week T-bill)
+  File:         data/raw/cash_rate_daily.parquet
+  Rows:         2,796
+  Columns:      rate, return
+  Rate range:   -0.1050% to 5.3480% annualized
+  Used as:      fixed r = 5% annual (hardcoded, not from this file)
+
+C) Option Chain Snapshot
+-------------------------
+  Source:       yfinance (SPY options chain)
+  File:         data/raw/option_chains/calls_2026-02-18.parquet
+                data/raw/option_chains/puts_2026-02-18.parquet
+  Snapshot:     SINGLE DATE ONLY (2026-02-18)
+  Calls:        4,728 contracts across 33 expiries (2026-02-18 to 2028-12-15)
+  Puts:         4,385 contracts across 33 expiries
+  Strike range: $50 to $1,360
+
+  DATA QUALITY:
+    Bid > 0:                451 / 4,728 calls (9.5%)   ← most contracts have bid=0
+    lastPrice > 0:        4,728 / 4,728 calls (100%)   ← all have stale lastPrice
+    Valid IV (0.01-3.0):  2,320 / 4,728 calls (49.1%)  ← half have garbage IV
+
+  AFTER FILTERING (chosen expiry 2026-02-27, DTE=9):
+    Calls:   160 contracts (strikes 420..716)
+    Puts:    187 contracts
+    These are filtered by: mid >= $0.05, spread <= 50% (only on rows with bid>0)
+
+D) Implied Volatility
+-----------------------
+  Chain IV from yfinance:  mostly garbage (median 0.008, min 0.00001)
+  ATM IV actually used:    0.1918 (19.2% annualized)
+    → derived via Newton-Raphson BS inversion from the ATM lastPrice ($8.55)
+    → NOT from the chain's impliedVolatility column
+
+E) Realized Volatility
+------------------------
+  Not explicitly computed.  The rolling-26 standard deviation of SPY
+  14-day returns serves as a proxy:
+    Range:  2.6% to 5.0% per period (annualized: ~11% to ~21%)
+    Last:   3.6% per period (annualized: ~15%)
+
+F) Option Return Statistics (synthetic, hold-to-expiry)
+---------------------------------------------------------
+    Asset         Mean     Std      Min      Max
+    SPY          +0.78%    4.0%   -10.6%    +9.0%
+    SPY_CALL    +25.7%   136.5%  -100.0%  +467.9%   ← extreme binary payoff
+    SPY_PUT     -13.0%   181.8%  -100.0%  +666.0%   ← extreme binary payoff
+    USDOLLAR     +0.19%    0.0%    +0.19%   +0.19%
+
+  Total loss (return = -100%) frequency:
+    Calls: 22 / 71 periods (31%)  — SPY fell, call expired worthless
+    Puts:  49 / 71 periods (69%)  — SPY rose, put expired worthless
+
+
+================================================================================
+3. HYPERPARAMETERS AND VOLATILITY ANALYSIS
+================================================================================
+
+A) Current Hyperparameters
+---------------------------
+
+  Backtest (backtest.py):
+    REBAL_DAYS         = 14      # trading days per period (from TARGET_IDEAL_DTE)
+    GAMMA              = 5.0     # risk-aversion in objective
+    MAX_TURNOVER       = 0.50    # max sum of |w_new - w_old| per period
+    TCOST_RATE         = 0.001   # 10 bps each way
+    LOOKBACK_YEARS     = 4.0     # synthetic return history
+    ROLLING_WINDOW     = 26      # ~1 year of periods for rolling mu/Sigma
+    MIN_PERIODS_FOR_ROLL = 8     # cold-start: use RND until 8 periods
+    MAX_OPTION_WEIGHT  = 0.15    # max 15% in any single option sleeve
+    MIN_CASH_WEIGHT    = 0.10    # always keep 10% in cash
+    MU_SHRINKAGE       = 0.50    # blend rolling mu 50/50 with cash rate
+
+  Forecasts (config.py):
+    REBALANCE_DAYS     = None    # hold to expiry
+    TARGET_MIN_DTE     = 7       # minimum days to expiry
+    TARGET_MAX_DTE     = 21      # maximum days to expiry
+    TARGET_IDEAL_DTE   = 14      # preferred DTE
+    MIN_OPTION_MID     = 0.05    # quote floor
+    MAX_BID_ASK_SPREAD = 0.50    # spread filter
+    MIN_BL_STRIKES     = 10      # minimum for BL density
+    WINSORIZE          = (1%, 99%) # tail trimming on MC returns
+    MU_CLIP_SPY        = (-10%, +10%)
+    MU_CLIP_OPTION     = (-30%, +30%)
+    option_vol_mult    = 2.0     # rescale option vol to 2x SPY vol in RND Sigma
+
+B) Why Portfolio Volatility Is So High
+----------------------------------------
+
+The -70% max drawdown and wild portfolio swings come from ONE root cause:
+hold-to-expiry ATM options have BINARY payoffs.
+
+  If SPY goes up:  call return ≈ +100% to +400%, put return = -100%
+  If SPY goes down: call return = -100%, put return ≈ +100% to +600%
+
+Even with the 15% cap, holding 15% in calls means:
+  - Bad period: 15% * (-100%) = -15% portfolio hit in ONE period
+  - This happened in 22 out of 71 periods (31% of the time)
+  - Several consecutive bad periods compound: (0.85)^3 = 0.61, a 39% loss
+
+The options are NOT providing volatility smoothing in the current setup.
+They are acting as leveraged directional bets with binary outcomes.
+This is the opposite of what you want for vol-smoothing.
+
+WHY OPTIONS AREN'T SMOOTHING VOLATILITY:
+  1. Hold-to-expiry means the option either pays off or is worthless.
+     There's no "time value cushion" to soften the blow.
+  2. The optimizer sees positive rolling mu for calls during bull markets
+     (because the mean of {-100%, +200%, +300%} is positive) and allocates
+     15%.  But the std is 137%, not the 5% the optimizer expects from the
+     rolling Sigma (which is biased by the asymmetric distribution).
+  3. Mean-variance optimization with binary payoffs is fundamentally
+     mismatched — the return distribution is nowhere near normal.
+
+C) How Soft Is the Volatility Constraint?
+-------------------------------------------
+
+There is NO explicit volatility constraint.
+
+The optimization problem is:
+
+  maximize  mu' * w  -  (gamma/2) * w' * Sigma * w  -  tcost * turnover
+
+  subject to:
+    w >= 0                          (long-only)
+    w <= [1.0, 0.15, 0.15, 1.0]    (option weight caps)
+    sum(w) = 1                      (fully invested)
+    w_cash >= 0.10                  (minimum cash)
+    |w - w_prev|_1 <= 0.50          (turnover cap)
+
+The ONLY thing limiting portfolio volatility is:
+  - The gamma * w'Sigma*w penalty in the objective (SOFT penalty, not a hard cap)
+  - The 15% option weight cap (HARD constraint)
+  - The 10% minimum cash (HARD constraint)
+
+With gamma = 5 and a rolling Sigma that has option variance ~1.9 (std 137%):
+  The gamma penalty for 15% in calls = 5/2 * 0.15^2 * 1.9 = 0.021
+  The expected return term for 15% in calls = 0.15 * 0.10 = 0.015
+
+So the penalty roughly balances the reward, but the optimizer STILL allocates
+to calls whenever rolling mu is positive enough.
+
+WHAT'S MISSING for volatility smoothing:
+  - A hard portfolio volatility TARGET: sqrt(w'Sigma*w) <= target_vol
+    (e.g., target_vol = 0.05 for ~5% per-period portfolio std)
+  - Or a TRACKING ERROR constraint against SPY
+  - Or HORIZON REPRICING instead of hold-to-expiry: options that are
+    sold before expiry retain time value, so a 3% SPY drop might only
+    cause a 40% call loss instead of 100%.  This dramatically reduces
+    the binary-ness and makes mean-variance more appropriate.
+  - Or use options for HEDGING (long put as insurance) rather than as
+    a return-seeking allocation.
+
+
+================================================================================
+4. SUMMARY OF KEY ISSUES
+================================================================================
+
+  ISSUE                              STATUS              IMPACT
+  ─────────────────────────────────  ──────────────────  ────────────────────────
+  Only 1 chain snapshot              Known limitation    No dynamic IV/chain data
+  BL always rejected (noisy data)    Expected            Lognormal fallback works
+  Constant IV for all 71 periods     Known limitation    Option returns are approx
+  Options have binary payoffs        Root cause of vol   -70% max DD
+  No hard vol constraint             Missing feature     Portfolio vol uncapped
+  Hold-to-expiry kills time value    Design choice       Max possible option loss
+  SPY mu ≈ 0 in RND (risk-neutral)  By construction     Rolling mu fixes this
+
+
+================================================================================
+5. RECOMMENDED NEXT STEPS (for volatility smoothing)
+================================================================================
+
+  1. Switch from hold-to-expiry to HORIZON REPRICING
+     Set REBALANCE_DAYS = 7 (or some fraction of DTE).  Options are
+     repriced via BS at the rebalance date instead of expiring.
+     This preserves time value and turns binary payoffs into
+     continuous ones.  A 3% SPY drop becomes a ~40% call loss
+     instead of -100%.
+
+  2. Add a hard portfolio volatility constraint
+     sqrt(w' * Sigma * w) <= target_vol
+     This is a second-order cone constraint, directly supported by
+     cvxpy.  Target something like 3-5% per-period std.
+
+  3. Use puts for HEDGING, not as a return-seeking asset
+     Instead of "allocate to puts when rolling mu is positive,"
+     always hold a small put position as tail insurance.
+     This is the classic "protective put" overlay.
+
+  4. Get richer data (Alpaca, ThetaData, etc.)
+     Multiple chain snapshots over time would allow:
+     - Time-varying IV for realistic option pricing
+     - True historical option returns (not synthetic)
+     - BL density extraction from clean bid/ask quotes
