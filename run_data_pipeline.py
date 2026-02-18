@@ -2,9 +2,10 @@
 Run the full Alpaca data pipeline.
 
 Usage:
-    python run_data_pipeline.py              # fetch everything (SPY + current + historical chains)
-    python run_data_pipeline.py --spy-only   # just SPY bars + cash rate
-    python run_data_pipeline.py --no-history # SPY + current chain, skip historical
+    python run_data_pipeline.py                  # fetch everything
+    python run_data_pipeline.py --spy-only       # just SPY bars + cash rate
+    python run_data_pipeline.py --no-history     # SPY + current chain, skip historical
+    python run_data_pipeline.py --extend-dte     # add longer-dated expiries to existing chains
 """
 from __future__ import annotations
 
@@ -26,6 +27,8 @@ def main():
     parser.add_argument("--start", default=DEFAULT_START_DATE, help="SPY start date (default: %(default)s)")
     parser.add_argument("--end", default=DEFAULT_END_DATE, help="SPY end date (default: today)")
     parser.add_argument("--period", type=int, default=TARGET_IDEAL_DTE, help="Rebalance period in trading days")
+    parser.add_argument("--extend-dte", action="store_true",
+                        help="Fetch longer-dated expiries and merge into existing chains")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -42,6 +45,7 @@ def main():
         spy_end=args.end,
         fetch_historical=not args.no_history,
         period_days=args.period,
+        extend_dte=args.extend_dte,
     )
 
 

@@ -721,15 +721,19 @@ def compute_rnd_forecasts(
         mu["SPY_PUT"] = np.clip(mu["SPY_PUT"], mu_clip_option[0], mu_clip_option[1])
 
     # ------------------------------------------------------------------
-    # 7. Rescale option volatilities (fix: .loc column then .loc row)
+    # 7. Optionally rescale option volatilities
     # ------------------------------------------------------------------
-    sig_spy = np.sqrt(max(Sigma.loc["SPY", "SPY"], 1e-8))
-    for name in ("SPY_CALL", "SPY_PUT"):
-        sig_opt = np.sqrt(max(Sigma.loc[name, name], 1e-8))
-        if sig_opt > 1e-8:
-            scale = (option_vol_mult * sig_spy) / sig_opt
-            Sigma.loc[:, name] *= scale   # column
-            Sigma.loc[name, :] *= scale   # row
+    # With horizon repricing, the Monte Carlo already produces correct
+    # option return variances (reflects delta leverage + time decay).
+    # Only rescale for terminal-payoff mode where variance is artificial.
+    if use_terminal_payoff and option_vol_mult > 0:
+        sig_spy = np.sqrt(max(Sigma.loc["SPY", "SPY"], 1e-8))
+        for name in ("SPY_CALL", "SPY_PUT"):
+            sig_opt = np.sqrt(max(Sigma.loc[name, name], 1e-8))
+            if sig_opt > 1e-8:
+                scale = (option_vol_mult * sig_spy) / sig_opt
+                Sigma.loc[:, name] *= scale   # column
+                Sigma.loc[name, :] *= scale   # row
 
     Sigma = (Sigma + Sigma.T) / 2
     for a in ASSET_ORDER:

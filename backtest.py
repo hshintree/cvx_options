@@ -52,7 +52,7 @@ TCOST_RATE = 0.001             # 10 bps each way
 INITIAL_VALUE = 1.0
 ROLLING_WINDOW = 13            # ~6 months of biweekly periods
 MIN_PERIODS_FOR_ROLL = 4
-MAX_OPTION_WEIGHT = 0.10       # max 10% per option sleeve
+MAX_OPTION_WEIGHT = 0.03       # 3% per sleeve (~60% notional via 20x leverage)
 MIN_CASH_WEIGHT = 0.10
 MU_SHRINKAGE = 0.5
 MAX_PORT_VOL = 0.04            # hard cap: portfolio std per period (SOCP constraint)
@@ -241,14 +241,14 @@ def run_backtest() -> tuple:
 
     logger.info("RND computed for %d / %d dates", len(rnd_sigmas), len(chain_dates))
 
-    # Default fallback Sigma
+    # Default fallback Sigma (option vol ≈ 20x SPY due to leverage)
     fallback_Sigma = _regularize_sigma(
-        np.diag([0.0009, 0.004, 0.004, 1e-10])
+        np.diag([0.0009, 0.36, 0.36, 1e-10])
     )
 
     n_assets = len(ASSET_ORDER)
     weights_history = np.zeros((n_periods + 1, n_assets))
-    weights_history[0] = [0.0, 0.0, 0.0, 1.0]
+    weights_history[0] = [0.60, 0.0, 0.0, 0.40]
     portfolio_values = np.ones(n_periods + 1) * INITIAL_VALUE
 
     r_period = float(returns["USDOLLAR"].iloc[0])
@@ -268,7 +268,8 @@ def run_backtest() -> tuple:
             mu_roll = returns.iloc[lb:t].mean().values.astype(float)
             mu_t = _shrink_mu(mu_roll, r_period)
         else:
-            mu_t = rnd_mus.get(entry_date, np.array([0.001, -0.01, -0.01, r_period]))
+            # Conservative cold-start prior: slight equity premium, flat options
+            mu_t = np.array([0.005, 0.0, 0.0, r_period])
 
         mu_history.append(mu_t.copy())
         method_history.append(rnd_diags.get(entry_date, {}).get("method", "fallback"))

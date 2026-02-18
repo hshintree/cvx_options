@@ -44,23 +44,23 @@ OPTION_ATM_STRIKE_PCT = 0.10
 # -----------------------------------------------------------------------------
 # Rebalancing: horizon repricing (options repriced via BS at next rebalance).
 # Set to None to match the chosen expiry (hold-to-expiry — binary returns).
-# Set to an integer (e.g. 7) to rebalance mid-life via horizon repricing.
-REBALANCE_DAYS = 7
+# Set to an integer (e.g. 14) to rebalance mid-life via horizon repricing.
+REBALANCE_DAYS = 14
 
-# DTE targeting: pick expiries in this band from the historical chains.
-# Historical chains have 7-21 DTE expiries.  We pick the longest available
-# so that T_remain ≈ DTE - REBALANCE_DAYS ≈ 7-10 days of time-value.
-TARGET_MIN_DTE = 7
-TARGET_MAX_DTE = 21
-TARGET_IDEAL_DTE = 16
+# DTE targeting: pick options with substantially more time than REBALANCE_DAYS
+# so they retain time-value at rebalance (continuous, non-binary payoffs).
+# At rebalance, options will have ~30 days remaining → smooth BS repricing.
+TARGET_MIN_DTE = 30
+TARGET_MAX_DTE = 60
+TARGET_IDEAL_DTE = 45
 
 # Quote quality (avoid penny options and bad quotes)
 MIN_OPTION_MID = 0.05  # drop options with mid < this (avoid tiny denominator)
 MAX_BID_ASK_SPREAD_PCT = 0.50  # drop if (ask-bid)/mid > this
 MIN_BL_STRIKES = 10  # minimum interior strikes for Breeden-Litzenberger density
 OPTION_RETURN_WINSORIZE_PCT = (1.0, 99.0)  # winsorize at these percentiles (no fixed cap)
-MU_CLIP_SPY = (-0.10, 0.10)  # plausible weekly SPY expected return
-MU_CLIP_OPTION = (-0.30, 0.30)  # plausible weekly option expected return (avoid 200%)
+MU_CLIP_SPY = (-0.10, 0.10)  # plausible biweekly SPY expected return
+MU_CLIP_OPTION = (-0.80, 0.80)  # option mu can be large due to ~20x leverage
 
 # -----------------------------------------------------------------------------
 # Ensure directories exist

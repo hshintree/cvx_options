@@ -422,11 +422,90 @@ def compute_rebalance_dates(
 # 6.  Full pipeline
 # ---------------------------------------------------------------------------
 
+def _extend_chain(chain_date: date, spot: float, new_min_dte: int, new_max_dte: int):
+    """Fetch additional expiries and merge into existing chain parquets."""
+    date_str = chain_date.isoformat()
+    calls_path = OPTION_CHAINS_DIR / f"calls_{date_str}.parquet"
+    puts_path = OPTION_CHAINS_DIR / f"puts_{date_str}.parquet"
+
+    old_calls = pd.read_parquet(calls_path) if calls_path.exists() else pd.DataFrame()
+    old_puts = pd.read_parquet(puts_path) if puts_path.exists() else pd.DataFrame()
+
+    # Determine which DTE ranges are already covered
+    ref = pd.Timestamp(date_str)
+    existing_dtes = set()
+    for df in (old_calls, old_puts):
+        if "expiry" in df.columns and len(df) > 0:
+            for exp in df["expiry"].unique():
+                existing_dtes.add((pd.Timestamp(exp) - ref).days)
+
+    # Only fetch expiries not already present
+    needed_expiries = []
+    for exp in _candidate_expiries(chain_date, new_min_dte, new_max_dte):
+        dte = (exp - chain_date).days
+        if dte not in existing_dtes:
+            needed_expiries.append(exp)
+
+    if not needed_expiries:
+        logger.debug("Chain %s already has DTE %d-%d covered", chain_date, new_min_dte, new_max_dte)
+        return
+
+    call_syms, put_syms = _generate_symbols(needed_expiries, spot)
+    all_syms = call_syms + put_syms
+    logger.info(
+        "Extending chain %s: %d new expiries (%d symbols)",
+        chain_date, len(needed_expiries), len(all_syms),
+    )
+
+    bars_df = _fetch_bars_batch(all_syms, chain_date)
+    if bars_df.empty:
+        logger.warning("No bars for extended expiries on %s", chain_date)
+        return
+
+    sym_col = "contract" if "contract" in bars_df.columns else "symbol"
+    if sym_col not in bars_df.columns:
+        return
+
+    rows = []
+    for _, row in bars_df.iterrows():
+        parsed = parse_occ_symbol(row[sym_col])
+        close_price = row.get("close", 0.0)
+        open_price = row.get("open", 0.0)
+        mid = (open_price + close_price) / 2 if (open_price > 0 and close_price > 0) else close_price
+        rows.append({
+            "contractSymbol": row[sym_col],
+            "expiry": parsed["expiry"].isoformat(),
+            "strike": parsed["strike"],
+            "lastPrice": close_price,
+            "bid": 0.0,
+            "ask": 0.0,
+            "impliedVolatility": 0.0,
+            "is_call": parsed["is_call"],
+            "volume": row.get("volume", 0),
+        })
+
+    new_df = pd.DataFrame(rows)
+    new_calls = new_df[new_df["is_call"]].drop(columns=["is_call"]).reset_index(drop=True)
+    new_puts = new_df[~new_df["is_call"]].drop(columns=["is_call"]).reset_index(drop=True)
+
+    merged_calls = pd.concat([old_calls, new_calls], ignore_index=True).drop_duplicates(
+        subset=["contractSymbol"], keep="last",
+    )
+    merged_puts = pd.concat([old_puts, new_puts], ignore_index=True).drop_duplicates(
+        subset=["contractSymbol"], keep="last",
+    )
+
+    merged_calls.to_parquet(calls_path, index=False)
+    merged_puts.to_parquet(puts_path, index=False)
+    logger.info("Extended %s: now %d calls, %d puts", chain_date, len(merged_calls), len(merged_puts))
+
+
 def run_full_pipeline(
     spy_start: str = "2020-01-01",
     spy_end: str | None = None,
     fetch_historical: bool = True,
     period_days: int = TARGET_IDEAL_DTE,
+    extend_dte: bool = False,
 ):
     """
     End-to-end Alpaca data fetch:
@@ -434,6 +513,8 @@ def run_full_pipeline(
       2. Cash rate series
       3. Current option chain snapshot
       4. Historical chain reconstructions for each rebalance date
+
+    If extend_dte=True, also fetch longer-dated expiries for existing chains.
     """
     logger.info("=== Alpaca Data Pipeline ===")
 
@@ -454,21 +535,23 @@ def run_full_pipeline(
         logger.info("Rebalance dates: %d (from %s to %s)", len(rebal_dates), rebal_dates[0], rebal_dates[-1])
 
         for i, rd in enumerate(rebal_dates):
-            chain_file = OPTION_CHAINS_DIR / f"calls_{rd.isoformat()}.parquet"
-            if chain_file.exists():
-                logger.info("[%d/%d] %s — already cached, skipping", i + 1, len(rebal_dates), rd)
-                continue
-
             rd_ts = pd.Timestamp(rd)
             spot_row = spy_df.index.get_indexer([rd_ts], method="ffill")
-            if spot_row[0] >= 0:
-                spot_rd = float(spy_df.iloc[spot_row[0]]["close"])
-            else:
-                spot_rd = spot
+            spot_rd = float(spy_df.iloc[spot_row[0]]["close"]) if spot_row[0] >= 0 else spot
 
-            logger.info("[%d/%d] Fetching chain for %s (spot=%.0f) ...", i + 1, len(rebal_dates), rd, spot_rd)
-            fetch_historical_chain(rd, spot_rd, save=True)
-            time.sleep(_API_SLEEP)
+            chain_file = OPTION_CHAINS_DIR / f"calls_{rd.isoformat()}.parquet"
+            if chain_file.exists() and not extend_dte:
+                logger.info("[%d/%d] %s — cached, skipping", i + 1, len(rebal_dates), rd)
+                continue
+
+            if chain_file.exists() and extend_dte:
+                logger.info("[%d/%d] %s — extending DTE range ...", i + 1, len(rebal_dates), rd)
+                _extend_chain(rd, spot_rd, TARGET_MIN_DTE, TARGET_MAX_DTE)
+                time.sleep(_API_SLEEP)
+            else:
+                logger.info("[%d/%d] Fetching chain for %s (spot=%.0f) ...", i + 1, len(rebal_dates), rd, spot_rd)
+                fetch_historical_chain(rd, spot_rd, save=True)
+                time.sleep(_API_SLEEP)
 
     logger.info("=== Pipeline complete ===")
 
