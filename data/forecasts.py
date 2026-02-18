@@ -298,6 +298,17 @@ def breeden_litzenberger_pdf(
         return np.array([]), np.array([])
     dK_mid = (dK[1:] + dK[:-1]) / 2
     d2C = (C[2:] - 2 * C[1:-1] + C[:-2]) / (dK_mid ** 2)
+
+    # If >50% of second-derivative values are negative, the call curve
+    # is concave (no-arbitrage violated) — density is unsalvageable.
+    frac_negative = np.mean(d2C <= 0)
+    if frac_negative > 0.50:
+        logger.debug(
+            "BL: %.0f%% of d2C values negative — density unsalvageable",
+            100 * frac_negative,
+        )
+        return np.array([]), np.array([])
+
     q = np.exp(r * T) * d2C
     q = np.maximum(q, 1e-12)
     return K[1:-1].copy(), q
@@ -314,10 +325,13 @@ def sample_terminal_prices(
     pdf = pdf / pdf.sum()
     cdf = np.cumsum(pdf)
     cdf = cdf / cdf[-1]
-    u = np.random.default_rng().uniform(0, 1, size=n_samples)
+    rng = np.random.default_rng()
+    u = rng.uniform(0, 1, size=n_samples)
     idx = np.searchsorted(cdf, u, side="right")
     idx = np.clip(idx, 1, len(cdf) - 1)
-    w = (u - cdf[idx - 1]) / (cdf[idx] - cdf[idx - 1] + 1e-12)
+    step = cdf[idx] - cdf[idx - 1]
+    w = np.where(step > 1e-10, (u - cdf[idx - 1]) / step, 0.5)
+    w = np.clip(w, 0.0, 1.0)
     S_T = (1 - w) * strikes[idx - 1] + w * strikes[idx]
     return S_T
 
@@ -602,11 +616,11 @@ def compute_rnd_forecasts(
         bl_reject_reason = "%d interior strikes < %d required" % (n_interior, MIN_BL_STRIKES)
 
     if bl_reject_reason:
-        logger.warning("BL rejected: %s", bl_reject_reason)
+        logger.debug("BL rejected: %s", bl_reject_reason)
 
     if bl_method != "breeden_litzenberger":
         atm_iv = _get_atm_iv(calls, puts, spot, r, T)
-        logger.warning(
+        logger.debug(
             "Using lognormal fallback IV=%.2f  (%d BL interior strikes)",
             atm_iv, n_interior,
         )

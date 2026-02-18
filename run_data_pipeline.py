@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
 """
-Run the full data pipeline: fetch raw data, then clean and build processed returns/volumes/prices.
+Run the full Alpaca data pipeline.
 
-Usage (from project root):
-  conda activate cvx_options
-  python run_data_pipeline.py [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--no-options]
+Usage:
+    python run_data_pipeline.py              # fetch everything (SPY + current + historical chains)
+    python run_data_pipeline.py --spy-only   # just SPY bars + cash rate
+    python run_data_pipeline.py --no-history # SPY + current chain, skip historical
 """
 from __future__ import annotations
 
@@ -13,44 +13,36 @@ import logging
 import sys
 from pathlib import Path
 
-# Project root on path
 _ROOT = Path(__file__).resolve().parent
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
+sys.path.insert(0, str(_ROOT))
 
-from data.fetch import run_full_fetch
-from data.clean import run_clean
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+from config import DEFAULT_START_DATE, DEFAULT_END_DATE, TARGET_IDEAL_DTE
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(description="Fetch and clean SPY + options + cash data")
-    p.add_argument("--start", default="2015-01-01", help="Start date YYYY-MM-DD")
-    p.add_argument("--end", default=None, help="End date YYYY-MM-DD (default: today)")
-    p.add_argument(
-        "--no-options",
-        action="store_true",
-        help="Skip fetching option contract histories (faster; call/put returns will be empty)",
+def main():
+    parser = argparse.ArgumentParser(description="Alpaca data pipeline for cvx_options")
+    parser.add_argument("--spy-only", action="store_true", help="Only fetch SPY bars + cash rate")
+    parser.add_argument("--no-history", action="store_true", help="Skip historical chain reconstruction")
+    parser.add_argument("--start", default=DEFAULT_START_DATE, help="SPY start date (default: %(default)s)")
+    parser.add_argument("--end", default=DEFAULT_END_DATE, help="SPY end date (default: today)")
+    parser.add_argument("--period", type=int, default=TARGET_IDEAL_DTE, help="Rebalance period in trading days")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    from data.fetch_alpaca import run_full_pipeline, fetch_spy_bars, build_cash_rate
+
+    if args.spy_only:
+        spy_df = fetch_spy_bars(start=args.start, end=args.end, save=True)
+        build_cash_rate(spy_df, save=True)
+        return
+
+    run_full_pipeline(
+        spy_start=args.start,
+        spy_end=args.end,
+        fetch_historical=not args.no_history,
+        period_days=args.period,
     )
-    p.add_argument(
-        "--historical-options",
-        action="store_true",
-        help="Also fetch historical option symbols (last 24 months). Default: current chain only (~120 contracts).",
-    )
-    args = p.parse_args()
-    run_full_fetch(
-        start_date=args.start,
-        end_date=args.end,
-        include_option_histories=not args.no_options,
-        include_historical_options=args.historical_options,
-    )
-    run_clean(save=True)
-    print("Done. Processed data in data/processed/")
 
 
 if __name__ == "__main__":

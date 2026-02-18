@@ -15,7 +15,7 @@ PROCESSED_DIR = DATA_DIR / "processed"
 SPY_DAILY_FILE = RAW_DIR / "spy_daily.parquet"
 CASH_RATE_FILE = RAW_DIR / "cash_rate_daily.parquet"
 OPTION_CHAINS_DIR = RAW_DIR / "option_chains"  # one parquet per date
-OPTION_CONTRACTS_DIR = RAW_DIR / "option_contracts"  # one parquet per contract symbol (or combined)
+OPTION_CONTRACTS_DIR = RAW_DIR / "option_contracts"  # unused with Alpaca pipeline
 
 # Processed outputs (for cvxportfolio / backtest)
 RETURNS_FILE = PROCESSED_DIR / "returns.parquet"
@@ -27,39 +27,32 @@ CALENDAR_FILE = PROCESSED_DIR / "trading_calendar.parquet"
 # Symbols and data range
 # -----------------------------------------------------------------------------
 UNDERLYING = "SPY"
-CASH_SYMBOL = "USDOLLAR"  # for display; we use risk-free rate series
+CASH_SYMBOL = "USDOLLAR"
 
-# Default date range for initial full pull (SPY can go back further; options depend on contract history)
-DEFAULT_START_DATE = "2015-01-01"  # adjust as needed; options history may be shorter
+# SPY equity bars: Alpaca has data going back many years
+DEFAULT_START_DATE = "2020-01-01"
 DEFAULT_END_DATE = None  # None = today
 
-# -----------------------------------------------------------------------------
-# Options selection (for building representative call/put series)
-# -----------------------------------------------------------------------------
-# Number of expirations to fetch history for (from front month)
-OPTION_EXPIRATIONS_TO_FETCH = 4
-# Strike range: fetch contracts with strike within ± this percent of ATM
-OPTION_ATM_STRIKE_PCT = 0.10  # e.g. 0.10 = 10% around ATM
-# Max number of contracts per expiry per type (call/put) to fetch history for (to limit API load)
-OPTION_MAX_CONTRACTS_PER_EXPIRY = 15
+# Historical option bars are only available since ~Feb 2024 on Alpaca
+OPTION_DATA_START = "2024-02-01"
 
-# Historical backfill: one ATM call + one ATM put per month (third Friday).
-# Yahoo often 404s for expired options. Default is OFF; use --historical-options to enable.
-OPTION_HISTORICAL_MONTHLY = False
-OPTION_HISTORICAL_MAX_MONTHS_BACK = 24  # when enabled, only expiries in last 24 months
+# Strike range for chain reconstruction: ATM ± this percent
+OPTION_ATM_STRIKE_PCT = 0.10
 
 # -----------------------------------------------------------------------------
 # RND / forecasts
 # -----------------------------------------------------------------------------
-# Rebalancing: hold options to expiry (rebalance period = DTE).
-# Set to None to match the chosen expiry (hold-to-expiry and roll).
+# Rebalancing: horizon repricing (options repriced via BS at next rebalance).
+# Set to None to match the chosen expiry (hold-to-expiry — binary returns).
 # Set to an integer (e.g. 7) to rebalance mid-life via horizon repricing.
-REBALANCE_DAYS = None
+REBALANCE_DAYS = 7
 
-# DTE targeting: pick options in this DTE band
-TARGET_MIN_DTE = 7    # expiry must be > chain_date + this many days
-TARGET_MAX_DTE = 21   # expiry must be < chain_date + this many days
-TARGET_IDEAL_DTE = 14 # prefer expiry closest to this DTE
+# DTE targeting: pick expiries in this band from the historical chains.
+# Historical chains have 7-21 DTE expiries.  We pick the longest available
+# so that T_remain ≈ DTE - REBALANCE_DAYS ≈ 7-10 days of time-value.
+TARGET_MIN_DTE = 7
+TARGET_MAX_DTE = 21
+TARGET_IDEAL_DTE = 16
 
 # Quote quality (avoid penny options and bad quotes)
 MIN_OPTION_MID = 0.05  # drop options with mid < this (avoid tiny denominator)

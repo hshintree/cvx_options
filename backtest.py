@@ -1,15 +1,18 @@
 """
 Markowitz++ backtest: SPY, ATM call, ATM put, cash.
 
-Uses REAL SPY returns + synthetic option returns (BS terminal payoff)
-over periodic intervals to simulate the "hold-to-expiry and roll" strategy.
+NEW: uses per-period RND forecasts from actual Alpaca option chain snapshots.
+Each rebalance period gets a FRESH Sigma from the option chain on that date,
+capturing time-varying implied volatility and correlation structure.
 
-Forecast approach (hybrid):
-  mu    = rolling historical mean of realized returns (physical measure)
-  Sigma = RND-implied covariance from option chain (risk structure)
+Forecast approach:
+  Sigma  = per-period RND covariance from option chain (option-implied risk)
+  mu     = rolling historical mean of realized returns (physical measure)
 
-This captures the equity risk premium (historical mu) while using the
-option-implied risk structure (RND Sigma).
+Realized returns use ACTUAL option prices from chain snapshots:
+  - Option entry price: BS-priced ATM call/put using chain IV on entry date
+  - Option exit:        terminal payoff at expiry (hold-to-expiry)
+  - SPY return:         real close-to-close over the period
 """
 from __future__ import annotations
 
@@ -28,7 +31,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from config import PROCESSED_DIR, SPY_DAILY_FILE, TARGET_IDEAL_DTE
+from config import OPTION_CHAINS_DIR, PROCESSED_DIR, SPY_DAILY_FILE, TARGET_IDEAL_DTE
 from data.forecasts import (
     ASSET_ORDER,
     _bs_call_price,
@@ -40,84 +43,41 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 # -----------------------------------------------------------------------
-# Backtest parameters
+# Backtest parameters  (tune these in demo.ipynb)
 # -----------------------------------------------------------------------
-REBAL_DAYS = TARGET_IDEAL_DTE  # ~14 trading days per period
-GAMMA = 5.0                    # risk-aversion
-MAX_TURNOVER = 0.50            # per-period turnover cap
+REBAL_DAYS = TARGET_IDEAL_DTE
+GAMMA = 10.0                   # risk-aversion (higher = less option exposure)
+MAX_TURNOVER = 0.40            # per-period turnover cap
 TCOST_RATE = 0.001             # 10 bps each way
 INITIAL_VALUE = 1.0
-LOOKBACK_YEARS = 4.0           # how far back for synthetic returns
-ROLLING_WINDOW = 26            # periods for rolling mu (~1 yr at 14-day freq)
-MIN_PERIODS_FOR_ROLL = 8       # need at least this many periods before switching to rolling
-
-# Position limits: options have binary payoffs (can return -100%) so cap exposure
-MAX_OPTION_WEIGHT = 0.15       # max 15% in any single option sleeve
-MIN_CASH_WEIGHT = 0.10         # always keep some cash
-MU_SHRINKAGE = 0.5             # blend rolling mu toward cash rate (0 = pure rolling, 1 = pure prior)
+ROLLING_WINDOW = 13            # ~6 months of biweekly periods
+MIN_PERIODS_FOR_ROLL = 4
+MAX_OPTION_WEIGHT = 0.10       # max 10% per option sleeve
+MIN_CASH_WEIGHT = 0.10
+MU_SHRINKAGE = 0.5
+MAX_PORT_VOL = 0.04            # hard cap: portfolio std per period (SOCP constraint)
 
 
 # -----------------------------------------------------------------------
-# 1. Build synthetic period returns from real SPY
+# Helpers
 # -----------------------------------------------------------------------
 
-def build_synthetic_returns(
-    rebal_days: int = REBAL_DAYS,
-    iv: float = 0.20,
-    r: float = 0.05,
-    lookback_years: float = LOOKBACK_YEARS,
-) -> pd.DataFrame:
-    """
-    Period returns for [SPY, SPY_CALL, SPY_PUT, USDOLLAR] from real SPY closes.
+def _available_chain_dates() -> list[str]:
+    """Return sorted list of dates (YYYY-MM-DD) that have chain parquets."""
+    dates = set()
+    for f in OPTION_CHAINS_DIR.glob("calls_*.parquet"):
+        d = f.stem.replace("calls_", "")
+        put_f = OPTION_CHAINS_DIR / f"puts_{d}.parquet"
+        if put_f.exists():
+            try:
+                pd.read_parquet(f)
+                dates.add(d)
+            except Exception:
+                pass
+    return sorted(dates)
 
-    Each period spans *rebal_days* trading days:
-      SPY  = S_end / S_start - 1
-      CALL = max(S_end - K, 0) / BS_Call(S_start, K, r, T, iv) - 1
-      PUT  = max(K - S_end, 0) / BS_Put(S_start, K, r, T, iv) - 1
-      CASH = exp(r * T) - 1
-
-    K = S_start (ATM at each period start).
-    """
-    spy = pd.read_parquet(SPY_DAILY_FILE)
-    closes = spy["close"].dropna().sort_index()
-    closes.index = pd.to_datetime(closes.index)
-
-    if lookback_years:
-        cutoff = closes.index[-1] - pd.DateOffset(years=int(lookback_years))
-        closes = closes[closes.index >= cutoff]
-
-    T = rebal_days / 365.0
-
-    dates, rows = [], []
-    i = 0
-    while i + rebal_days < len(closes):
-        s0 = float(closes.iloc[i])
-        s1 = float(closes.iloc[i + rebal_days])
-
-        c0 = max(_bs_call_price(s0, s0, r, T, iv), 0.01)
-        p0 = max(_bs_put_price(s0, s0, r, T, iv), 0.01)
-
-        r_spy = s1 / s0 - 1.0
-        r_call = max(s1 - s0, 0.0) / c0 - 1.0
-        r_put = max(s0 - s1, 0.0) / p0 - 1.0
-        r_cash = np.exp(r * T) - 1.0
-
-        dates.append(closes.index[i + rebal_days])
-        rows.append([r_spy, r_call, r_put, r_cash])
-
-        i += rebal_days
-
-    returns = pd.DataFrame(rows, index=pd.DatetimeIndex(dates), columns=ASSET_ORDER)
-    returns.index.name = "date"
-    return returns
-
-
-# -----------------------------------------------------------------------
-# 2. Markowitz optimiser (cvxpy)
-# -----------------------------------------------------------------------
 
 def _shrink_mu(mu_roll: np.ndarray, r_period: float) -> np.ndarray:
-    """Shrink rolling mu toward the cash rate to tame extreme estimates."""
     prior = np.full_like(mu_roll, r_period)
     return (1 - MU_SHRINKAGE) * mu_roll + MU_SHRINKAGE * prior
 
@@ -127,6 +87,7 @@ def _solve_markowitz(
     Sigma_arr: np.ndarray,
     w_prev: np.ndarray,
     gamma: float = GAMMA,
+    max_port_vol: float = MAX_PORT_VOL,
 ) -> np.ndarray:
     n = len(mu_arr)
     w = cp.Variable(n)
@@ -136,15 +97,20 @@ def _solve_markowitz(
     tcost = TCOST_RATE * turnover
 
     objective = cp.Maximize(ret - gamma / 2 * risk - tcost)
-    # SPY, CALL, PUT, CASH
     w_upper = np.array([1.0, MAX_OPTION_WEIGHT, MAX_OPTION_WEIGHT, 1.0])
     constraints = [
         w >= 0,
         w <= w_upper,
         cp.sum(w) == 1,
-        w[3] >= MIN_CASH_WEIGHT,   # USDOLLAR index = 3
+        w[3] >= MIN_CASH_WEIGHT,
         turnover <= MAX_TURNOVER,
     ]
+
+    # Hard portfolio volatility cap  (second-order cone constraint)
+    # sqrt(w' Sigma w) <= max_port_vol
+    if max_port_vol is not None and max_port_vol > 0:
+        L = np.linalg.cholesky(Sigma_arr + np.eye(n) * 1e-8)
+        constraints.append(cp.norm(L.T @ w, 2) <= max_port_vol)
 
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=cp.SCS, verbose=False)
@@ -155,71 +121,157 @@ def _solve_markowitz(
     return w_prev.copy()
 
 
+def _regularize_sigma(S: np.ndarray) -> np.ndarray:
+    S = (S + S.T) / 2.0
+    eig = np.linalg.eigvalsh(S)
+    if eig.min() < 1e-8 or np.any(np.isnan(S)):
+        S += np.eye(S.shape[0]) * 1e-6
+    return S
+
+
 # -----------------------------------------------------------------------
-# 3. Run backtest
+# Build realized returns aligned to chain dates
+# -----------------------------------------------------------------------
+
+def build_realized_returns(
+    chain_dates: list[str],
+    spy_df: pd.DataFrame,
+    r: float = 0.05,
+) -> pd.DataFrame:
+    """
+    For each consecutive pair of chain dates, compute realized returns
+    using BS horizon repricing (sticky-strike IV).
+
+    Entry: buy ATM options with the DTE chosen by the RND system.
+    Exit:  reprice those options at the next chain date with remaining time.
+    """
+    rows = []
+    dates_out = []
+
+    for i in range(len(chain_dates) - 1):
+        d0 = chain_dates[i]
+        d1 = chain_dates[i + 1]
+        ts0 = pd.Timestamp(d0)
+        ts1 = pd.Timestamp(d1)
+
+        idx0 = spy_df.index.get_indexer([ts0], method="ffill")[0]
+        idx1 = spy_df.index.get_indexer([ts1], method="ffill")[0]
+        if idx0 < 0 or idx1 < 0:
+            continue
+
+        s0 = float(spy_df.iloc[idx0]["close"])
+        s1 = float(spy_df.iloc[idx1]["close"])
+        holding_days = (ts1 - ts0).days
+        T_hold = max(holding_days / 365.0, 1 / 365.0)
+
+        # Get IV and option DTE from the chain on entry date
+        try:
+            _, _, diag = compute_rnd_forecasts(
+                chain_date=d0, spot=s0, n_samples=1000, return_diagnostics=True,
+            )
+            iv = diag["atm_iv"]
+            option_dte = diag["dte"]
+        except Exception:
+            iv = 0.15
+            option_dte = 30
+
+        T_option = max(option_dte / 365.0, 1 / 365.0)
+        T_remain = max(T_option - T_hold, 0.0)
+        k_atm = round(s0)
+
+        # Entry prices (ATM, full option DTE)
+        c0 = max(_bs_call_price(s0, k_atm, r, T_option, iv), 0.01)
+        p0 = max(_bs_put_price(s0, k_atm, r, T_option, iv), 0.01)
+
+        # Exit prices (BS reprice with remaining time, sticky-strike IV)
+        if T_remain > 1 / 365.0:
+            c1 = max(_bs_call_price(s1, k_atm, r, T_remain, iv), 0.0)
+            p1 = max(_bs_put_price(s1, k_atm, r, T_remain, iv), 0.0)
+        else:
+            c1 = max(s1 - k_atm, 0.0)
+            p1 = max(k_atm - s1, 0.0)
+
+        r_spy = s1 / s0 - 1.0
+        r_call = c1 / c0 - 1.0
+        r_put = p1 / p0 - 1.0
+        r_cash = np.exp(r * T_hold) - 1.0
+
+        dates_out.append(ts1)
+        rows.append([r_spy, r_call, r_put, r_cash])
+
+    return pd.DataFrame(rows, index=pd.DatetimeIndex(dates_out), columns=ASSET_ORDER)
+
+
+# -----------------------------------------------------------------------
+# Run backtest
 # -----------------------------------------------------------------------
 
 def run_backtest() -> tuple:
-    # --- RND forecasts (for Sigma and fallback mu) ---
-    logger.info("Computing RND forecasts ...")
-    mu_rnd, Sigma_rnd, diag = compute_rnd_forecasts(
-        n_samples=10_000, return_diagnostics=True,
-    )
-    logger.info("RND mu:\n%s", mu_rnd)
+    spy_df = pd.read_parquet(SPY_DAILY_FILE)
+    spy_df.index = pd.to_datetime(spy_df.index).tz_localize(None).normalize()
 
-    # --- synthetic returns from real SPY ---
-    atm_iv = diag["atm_iv"]
-    logger.info(
-        "Building synthetic returns (period=%d days, IV=%.2f, lookback=%.0f yr) ...",
-        REBAL_DAYS, atm_iv, LOOKBACK_YEARS,
-    )
-    returns = build_synthetic_returns(rebal_days=REBAL_DAYS, iv=atm_iv)
+    chain_dates = _available_chain_dates()
+    logger.info("Available chain dates: %d", len(chain_dates))
+
+    # Build realized returns between consecutive chain dates
+    logger.info("Building realized returns from chain dates ...")
+    returns = build_realized_returns(chain_dates, spy_df)
     n_periods = len(returns)
-    logger.info(
-        "Periods: %d  (%s to %s)", n_periods,
-        returns.index[0].date(), returns.index[-1].date(),
-    )
+    logger.info("Periods: %d  (%s to %s)", n_periods,
+                returns.index[0].date(), returns.index[-1].date())
 
-    # Sigma: use RND for initial periods, then switch to rolling historical
-    # (RND Sigma underestimates option return variance because it's from
-    #  lognormal model; real hold-to-expiry returns are binary and far more volatile)
-    Sigma_rnd_arr = Sigma_rnd.values.astype(float)
-    Sigma_rnd_arr = (Sigma_rnd_arr + Sigma_rnd_arr.T) / 2
-    eigvals = np.linalg.eigvalsh(Sigma_rnd_arr)
-    if eigvals.min() < 1e-8:
-        Sigma_rnd_arr += np.eye(len(ASSET_ORDER)) * 1e-6
+    # Pre-compute per-period RND Sigma from each chain snapshot
+    logger.info("Computing per-period RND forecasts ...")
+    rnd_sigmas = {}
+    rnd_mus = {}
+    rnd_diags = {}
+    for d in chain_dates:
+        ts = pd.Timestamp(d)
+        idx = spy_df.index.get_indexer([ts], method="ffill")[0]
+        spot = float(spy_df.iloc[idx]["close"]) if idx >= 0 else 550.0
+        try:
+            mu_rnd, Sigma_rnd, diag = compute_rnd_forecasts(
+                chain_date=d, spot=spot, n_samples=5000, return_diagnostics=True,
+            )
+            rnd_sigmas[d] = _regularize_sigma(Sigma_rnd.values.astype(float))
+            rnd_mus[d] = mu_rnd.values.astype(float)
+            rnd_diags[d] = diag
+        except Exception as e:
+            logger.warning("RND failed for %s: %s", d, e)
+
+    logger.info("RND computed for %d / %d dates", len(rnd_sigmas), len(chain_dates))
+
+    # Default fallback Sigma
+    fallback_Sigma = _regularize_sigma(
+        np.diag([0.0009, 0.004, 0.004, 1e-10])
+    )
 
     n_assets = len(ASSET_ORDER)
-
     weights_history = np.zeros((n_periods + 1, n_assets))
-    weights_history[0] = [0.0, 0.0, 0.0, 1.0]  # start in cash
+    weights_history[0] = [0.0, 0.0, 0.0, 1.0]
     portfolio_values = np.ones(n_periods + 1) * INITIAL_VALUE
 
     r_period = float(returns["USDOLLAR"].iloc[0])
     mu_history = []
+    method_history = []
 
     for t in range(n_periods):
         w_prev = weights_history[t]
+        entry_date = chain_dates[t]
 
+        # --- Sigma: from RND on the entry date ---
+        Sigma_t = rnd_sigmas.get(entry_date, fallback_Sigma)
+
+        # --- mu: rolling historical (physical measure) + shrinkage ---
         if t >= MIN_PERIODS_FOR_ROLL:
             lb = max(0, t - ROLLING_WINDOW)
-            hist_slice = returns.iloc[lb:t]
-            mu_roll = hist_slice.mean().values.astype(float)
+            mu_roll = returns.iloc[lb:t].mean().values.astype(float)
             mu_t = _shrink_mu(mu_roll, r_period)
-
-            # Rolling historical covariance (captures real binary-payoff risk)
-            Sigma_hist = hist_slice.cov().values.astype(float)
-            Sigma_hist = (Sigma_hist + Sigma_hist.T) / 2
-            eig = np.linalg.eigvalsh(Sigma_hist)
-            if eig.min() < 1e-8 or np.any(np.isnan(Sigma_hist)):
-                Sigma_t = Sigma_rnd_arr
-            else:
-                Sigma_t = Sigma_hist
         else:
-            mu_t = mu_rnd.values.astype(float)
-            Sigma_t = Sigma_rnd_arr
+            mu_t = rnd_mus.get(entry_date, np.array([0.001, -0.01, -0.01, r_period]))
 
         mu_history.append(mu_t.copy())
+        method_history.append(rnd_diags.get(entry_date, {}).get("method", "fallback"))
 
         w_opt = _solve_markowitz(mu_t, Sigma_t, w_prev)
         weights_history[t + 1] = w_opt
@@ -231,7 +283,6 @@ def run_backtest() -> tuple:
 
         portfolio_values[t + 1] = portfolio_values[t] * (1 + port_ret)
 
-    # assemble output frames
     start_date = returns.index[0] - pd.Timedelta(days=REBAL_DAYS)
     dates_full = pd.DatetimeIndex([start_date] + list(returns.index))
 
@@ -239,20 +290,31 @@ def run_backtest() -> tuple:
     weights_df = pd.DataFrame(weights_history, index=dates_full, columns=ASSET_ORDER)
     mu_df = pd.DataFrame(mu_history, index=returns.index, columns=ASSET_ORDER)
 
-    return portfolio_df, weights_df, returns, mu_rnd, Sigma_rnd, diag, mu_df
+    diag_summary = {
+        "n_periods": n_periods,
+        "n_rnd_computed": len(rnd_sigmas),
+        "n_bl": sum(1 for d in rnd_diags.values() if d.get("method") == "breeden_litzenberger"),
+        "n_lognormal": sum(1 for d in rnd_diags.values() if d.get("method") == "lognormal_iv_fallback"),
+        "iv_range": (
+            min(d.get("atm_iv", 0) for d in rnd_diags.values()),
+            max(d.get("atm_iv", 0) for d in rnd_diags.values()),
+        ),
+        "method_history": method_history,
+    }
+
+    return portfolio_df, weights_df, returns, mu_df, diag_summary
 
 
 # -----------------------------------------------------------------------
-# 4. Plot
+# Plot
 # -----------------------------------------------------------------------
 
 def plot_results(
     portfolio_df: pd.DataFrame,
     weights_df: pd.DataFrame,
     returns: pd.DataFrame,
-    mu_rnd: pd.Series,
-    diag: dict,
     mu_df: pd.DataFrame,
+    diag: dict,
     save_path: str | Path | None = None,
 ) -> str:
     fig, axes = plt.subplots(
@@ -261,9 +323,9 @@ def plot_results(
     )
     fig.suptitle(
         "Markowitz++ Backtest:  SPY · ATM Call · ATM Put · Cash\n"
-        f"Period = {REBAL_DAYS}d hold-to-expiry · γ = {GAMMA}"
-        f" · max option wt = {MAX_OPTION_WEIGHT:.0%}"
-        f" · μ shrinkage = {MU_SHRINKAGE}",
+        f"γ = {GAMMA}  ·  max option = {MAX_OPTION_WEIGHT:.0%}"
+        f"  ·  vol cap = {MAX_PORT_VOL:.0%}/period"
+        f"  ·  BL: {diag['n_bl']}/{diag['n_rnd_computed']}",
         fontsize=13, fontweight="bold",
     )
 
@@ -283,73 +345,59 @@ def plot_results(
     drawdown = pv / running_max - 1
     max_dd = drawdown.min()
 
-    # ---- Panel 1: portfolio trajectory ----
+    # Panel 1: portfolio trajectory
     ax = axes[0]
-    ax.plot(
-        portfolio_df.index, portfolio_df["value"],
-        color="#2563eb", linewidth=2.2, label="Optimized Portfolio",
-    )
-    ax.plot(
-        returns.index, spy_cum.values,
-        color="#94a3b8", linewidth=1.5, linestyle="--", label="SPY Buy & Hold",
-    )
+    ax.plot(portfolio_df.index, pv, color="#2563eb", linewidth=2.2, label="Optimized Portfolio")
+    ax.plot(returns.index, spy_cum.values, color="#94a3b8", linewidth=1.5,
+            linestyle="--", label="SPY Buy & Hold")
     ax.axhline(1.0, color="k", linewidth=0.5, alpha=0.4)
     ax.set_ylabel("Value ($1 initial)")
     ax.legend(loc="upper left", fontsize=10)
     ax.grid(True, alpha=0.3)
 
-    n_periods = len(returns)
+    iv_lo, iv_hi = diag["iv_range"]
     stats = (
         f"Return: {total_ret:+.1%}  (SPY: {spy_total:+.1%})\n"
         f"Sharpe (ann.): {sharpe:.2f}\n"
         f"Max DD: {max_dd:.1%}\n"
-        f"Periods: {n_periods}  ({returns.index[0].date()} → {returns.index[-1].date()})\n"
-        f"Forecast: rolling-{ROLLING_WINDOW} μ + rolling Σ\n"
-        f"ATM IV: {diag['atm_iv']:.1%}   DTE: {diag['dte']}d   Method: {diag['method']}"
+        f"Periods: {diag['n_periods']}  ({returns.index[0].date()} → {returns.index[-1].date()})\n"
+        f"BL density: {diag['n_bl']}/{diag['n_rnd_computed']}  "
+        f"IV range: {iv_lo:.0%}–{iv_hi:.0%}"
     )
-    ax.text(
-        0.98, 0.02, stats, transform=ax.transAxes,
-        fontsize=9, va="bottom", ha="right",
-        bbox=dict(boxstyle="round,pad=0.4", fc="white", alpha=0.85),
-    )
+    ax.text(0.98, 0.02, stats, transform=ax.transAxes, fontsize=9, va="bottom", ha="right",
+            bbox=dict(boxstyle="round,pad=0.4", fc="white", alpha=0.85))
 
-    # ---- Panel 2: drawdown ----
+    # Panel 2: drawdown
     ax_dd = axes[1]
-    ax_dd.fill_between(
-        portfolio_df.index, drawdown, 0,
-        color="#dc2626", alpha=0.35,
-    )
+    ax_dd.fill_between(portfolio_df.index, drawdown, 0, color="#dc2626", alpha=0.35)
     ax_dd.plot(portfolio_df.index, drawdown, color="#dc2626", linewidth=0.8)
     ax_dd.set_ylabel("Drawdown")
     ax_dd.set_ylim(min(max_dd * 1.1, -0.05), 0.02)
     ax_dd.grid(True, alpha=0.3)
 
-    # ---- Panel 3: allocation weights (stacked) ----
+    # Panel 3: weights
     ax2 = axes[2]
-    w_arr = weights_df[ASSET_ORDER].values
-    ax2.stackplot(
-        weights_df.index, w_arr.T,
-        labels=ASSET_ORDER,
-        colors=[colors[a] for a in ASSET_ORDER],
-        alpha=0.85,
-    )
+    ax2.stackplot(weights_df.index, weights_df[ASSET_ORDER].values.T,
+                  labels=ASSET_ORDER, colors=[colors[a] for a in ASSET_ORDER], alpha=0.85)
     ax2.set_ylabel("Weight")
     ax2.set_ylim(0, 1)
     ax2.legend(loc="upper left", ncol=4, fontsize=9)
     ax2.grid(True, alpha=0.3)
 
-    # ---- Panel 4: rolling mu used by optimizer ----
+    # Panel 4: rolling mu
     ax3 = axes[3]
     for asset in ["SPY", "SPY_CALL", "SPY_PUT"]:
-        ax3.plot(
-            mu_df.index, mu_df[asset],
-            label=asset, color=colors[asset], linewidth=1.2,
-        )
+        ax3.plot(mu_df.index, mu_df[asset], label=asset, color=colors[asset], linewidth=1.2)
     ax3.axhline(0, color="k", linewidth=0.5, alpha=0.5)
-    ax3.set_ylabel("Rolling μ (shrunk)")
+    ax3.set_ylabel("μ (shrunk)")
     ax3.set_xlabel("Date")
     ax3.legend(loc="upper left", ncol=3, fontsize=9)
     ax3.grid(True, alpha=0.3)
+
+    # Add RND method markers on the weights panel
+    for i, m in enumerate(diag.get("method_history", [])):
+        if m == "breeden_litzenberger":
+            ax2.axvline(returns.index[i], color="green", alpha=0.15, linewidth=1)
 
     plt.tight_layout()
     save_path = save_path or str(PROCESSED_DIR / "backtest_results.png")
@@ -364,26 +412,23 @@ def plot_results(
 # -----------------------------------------------------------------------
 
 if __name__ == "__main__":
-    portfolio_df, weights_df, returns, mu_rnd, Sigma_rnd, diag, mu_df = run_backtest()
+    portfolio_df, weights_df, returns, mu_df, diag = run_backtest()
 
     pv = portfolio_df["value"]
     print("\n========== Backtest Results ==========")
-    print(f"Periods:  {len(returns)}")
+    print(f"Periods:  {diag['n_periods']}")
     print(f"Range:    {returns.index[0].date()} to {returns.index[-1].date()}")
     print(f"Final:    ${pv.iloc[-1]:.4f}  ({pv.iloc[-1] / INITIAL_VALUE - 1:+.2%})")
 
-    # Annualized Sharpe
     pr = np.diff(pv.values) / pv.values[:-1]
     ann = np.sqrt(252 / max(REBAL_DAYS, 1))
     print(f"Sharpe:   {np.mean(pr) / (np.std(pr) + 1e-12) * ann:.2f}")
     print(f"Max DD:   {np.min(pv.values / np.maximum.accumulate(pv.values)) - 1:.1%}")
+    print(f"BL used:  {diag['n_bl']}/{diag['n_rnd_computed']} periods")
 
     print("\nFinal weights:")
     for a in ASSET_ORDER:
         print(f"  {a:10s} {weights_df[a].iloc[-1]:6.1%}")
 
-    print(f"\nRND mu (static):  {mu_rnd.to_dict()}")
-    print(f"Last rolling mu:  {mu_df.iloc[-1].to_dict()}")
-
-    plot_path = plot_results(portfolio_df, weights_df, returns, mu_rnd, diag, mu_df)
+    plot_path = plot_results(portfolio_df, weights_df, returns, mu_df, diag)
     print(f"\nPlot saved: {plot_path}")
