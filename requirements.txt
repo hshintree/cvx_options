@@ -1,0 +1,17 @@
+# Core optimization and backtest
+cvxportfolio>=1.5.0
+cvxpy>=1.4.0
+pandas>=1.4.0
+numpy>=1.20.0
+
+# Data
+yfinance>=0.2.0
+
+# Risk-neutral density / fitting
+scipy>=1.9.0
+
+# PyArrow for parquet (often installed with pandas; explicit for robustness)
+pyarrow>=10.0.0
+
+# Optional: Alpaca if you switch data source
+# alpaca-py>=0.20.0
