@@ -1,17 +1,20 @@
 """
 Markowitz++ backtest: SPY, ATM call, ATM put, cash.
 
-NEW: uses per-period RND forecasts from actual Alpaca option chain snapshots.
-Each rebalance period gets a FRESH Sigma from the option chain on that date,
-capturing time-varying implied volatility and correlation structure.
-
 Forecast approach:
-  Sigma  = per-period RND covariance from option chain (option-implied risk)
+  Sigma  = blend of IEWMA (historical, from Johansson et al. 2023) and
+           per-period RND covariance from option chain (forward-looking)
   mu     = rolling historical mean of realized returns (physical measure)
+
+Optimizer:
+  Worst-case robust Markowitz (from DeMiguel et al., MVO review):
+    - Return penalty:  subtract ρ per asset weight  (hedges μ estimation error)
+    - Covariance boost: Σ_wc = Σ + κ·diag(Σ)  (hedges Σ estimation error)
+  Both ρ and κ are tunable (default from config).
 
 Realized returns use ACTUAL option prices from chain snapshots:
   - Option entry price: BS-priced ATM call/put using chain IV on entry date
-  - Option exit:        terminal payoff at expiry (hold-to-expiry)
+  - Option exit:        BS repriced at next rebalance (sticky-strike IV)
   - SPY return:         real close-to-close over the period
 """
 from __future__ import annotations
@@ -31,7 +34,18 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from config import OPTION_CHAINS_DIR, PROCESSED_DIR, SPY_DAILY_FILE, TARGET_IDEAL_DTE
+from config import (
+    COV_UNCERTAINTY,
+    IEWMA_HALFLIFE_PAIRS,
+    IEWMA_LOOKBACK,
+    MU_UNCERTAINTY,
+    OPTION_CHAINS_DIR,
+    PROCESSED_DIR,
+    SIGMA_IEWMA_WEIGHT,
+    SPY_DAILY_FILE,
+    TARGET_IDEAL_DTE,
+)
+from data.covariance import CMIEWMAPredictor
 from data.forecasts import (
     ASSET_ORDER,
     _bs_call_price,
@@ -53,9 +67,15 @@ INITIAL_VALUE = 1.0
 ROLLING_WINDOW = 13            # ~6 months of biweekly periods
 MIN_PERIODS_FOR_ROLL = 4
 MAX_OPTION_WEIGHT = 0.03       # 3% per sleeve (~60% notional via 20x leverage)
+MAX_SPY_WEIGHT = 1.0           # max weight in SPY equity sleeve
 MIN_CASH_WEIGHT = 0.10
 MU_SHRINKAGE = 0.5
 MAX_PORT_VOL = 0.04            # hard cap: portfolio std per period (SOCP constraint)
+
+# Robust optimization parameters  (patched from demo.ipynb)
+ROBUST_MU_UNCERTAINTY = MU_UNCERTAINTY       # ρ: return uncertainty per asset
+ROBUST_COV_UNCERTAINTY = COV_UNCERTAINTY     # κ: covariance diagonal boost
+IEWMA_WEIGHT = SIGMA_IEWMA_WEIGHT           # blend weight for IEWMA vs RND Sigma
 
 
 # -----------------------------------------------------------------------
@@ -88,16 +108,38 @@ def _solve_markowitz(
     w_prev: np.ndarray,
     gamma: float = GAMMA,
     max_port_vol: float = MAX_PORT_VOL,
+    mu_uncertainty: float = ROBUST_MU_UNCERTAINTY,
+    cov_uncertainty: float = ROBUST_COV_UNCERTAINTY,
 ) -> np.ndarray:
+    """Worst-case robust Markowitz optimizer.
+
+    For long-only portfolios the worst-case simplifications from MVO_70 apply:
+      - Worst-case return: μ_wc = μ − ρ  (subtract uncertainty from each asset)
+      - Worst-case covariance: Σ_wc = Σ + κ·diag(Σ)  (inflate diagonal)
+    """
     n = len(mu_arr)
     w = cp.Variable(n)
-    ret = mu_arr @ w
-    risk = cp.quad_form(w, Sigma_arr, assume_PSD=True)
+
+    # Worst-case return: penalize by per-asset uncertainty ρ
+    # For long-only, |w| = w, so μ_wc'w = (μ − ρ)'w
+    rho = np.full(n, mu_uncertainty)
+    rho[3] = 0.0  # cash return is known (no uncertainty)
+    mu_wc = mu_arr - rho
+    ret = mu_wc @ w
+
+    # Worst-case covariance: inflate diagonal by κ
+    # Σ_wc = Σ + κ * diag(diag(Σ)) = Σ * (I + κ * diag(1))  on diagonal only
+    Sigma_wc = Sigma_arr.copy()
+    if cov_uncertainty > 0:
+        Sigma_wc += cov_uncertainty * np.diag(np.diag(Sigma_arr))
+    Sigma_wc = (Sigma_wc + Sigma_wc.T) / 2.0
+
+    risk = cp.quad_form(w, Sigma_wc, assume_PSD=True)
     turnover = cp.norm(w - w_prev, 1)
     tcost = TCOST_RATE * turnover
 
     objective = cp.Maximize(ret - gamma / 2 * risk - tcost)
-    w_upper = np.array([1.0, MAX_OPTION_WEIGHT, MAX_OPTION_WEIGHT, 1.0])
+    w_upper = np.array([MAX_SPY_WEIGHT, MAX_OPTION_WEIGHT, MAX_OPTION_WEIGHT, 1.0])
     constraints = [
         w >= 0,
         w <= w_upper,
@@ -106,10 +148,9 @@ def _solve_markowitz(
         turnover <= MAX_TURNOVER,
     ]
 
-    # Hard portfolio volatility cap  (second-order cone constraint)
-    # sqrt(w' Sigma w) <= max_port_vol
+    # Hard portfolio volatility cap using worst-case covariance (SOCP)
     if max_port_vol is not None and max_port_vol > 0:
-        L = np.linalg.cholesky(Sigma_arr + np.eye(n) * 1e-8)
+        L = np.linalg.cholesky(Sigma_wc + np.eye(n) * 1e-8)
         constraints.append(cp.norm(L.T @ w, 2) <= max_port_vol)
 
     prob = cp.Problem(objective, constraints)
@@ -246,7 +287,16 @@ def run_backtest() -> tuple:
         np.diag([0.0009, 0.36, 0.36, 1e-10])
     )
 
+    # ---------------------------------------------------------------
+    # Initialize IEWMA covariance predictor (online, uses realized returns)
+    # ---------------------------------------------------------------
     n_assets = len(ASSET_ORDER)
+    iewma_predictor = CMIEWMAPredictor(
+        n_assets,
+        halflife_pairs=IEWMA_HALFLIFE_PAIRS,
+        lookback=IEWMA_LOOKBACK,
+    )
+
     weights_history = np.zeros((n_periods + 1, n_assets))
     weights_history[0] = [0.60, 0.0, 0.0, 0.40]
     portfolio_values = np.ones(n_periods + 1) * INITIAL_VALUE
@@ -254,13 +304,26 @@ def run_backtest() -> tuple:
     r_period = float(returns["USDOLLAR"].iloc[0])
     mu_history = []
     method_history = []
+    sigma_source_history = []
 
     for t in range(n_periods):
         w_prev = weights_history[t]
         entry_date = chain_dates[t]
 
-        # --- Sigma: from RND on the entry date ---
-        Sigma_t = rnd_sigmas.get(entry_date, fallback_Sigma)
+        # --- Sigma: blend IEWMA (historical) and RND (forward-looking) ---
+        Sigma_rnd = rnd_sigmas.get(entry_date, fallback_Sigma)
+        Sigma_iewma = iewma_predictor.predict()
+
+        if Sigma_iewma is not None and IEWMA_WEIGHT > 0:
+            Sigma_iewma = _regularize_sigma(Sigma_iewma)
+            alpha = IEWMA_WEIGHT
+            Sigma_t = (1.0 - alpha) * Sigma_rnd + alpha * Sigma_iewma
+            sigma_source_history.append("blend")
+        else:
+            Sigma_t = Sigma_rnd
+            sigma_source_history.append("rnd_only")
+
+        Sigma_t = _regularize_sigma(Sigma_t)
 
         # --- mu: rolling historical (physical measure) + shrinkage ---
         if t >= MIN_PERIODS_FOR_ROLL:
@@ -268,7 +331,6 @@ def run_backtest() -> tuple:
             mu_roll = returns.iloc[lb:t].mean().values.astype(float)
             mu_t = _shrink_mu(mu_roll, r_period)
         else:
-            # Conservative cold-start prior: slight equity premium, flat options
             mu_t = np.array([0.005, 0.0, 0.0, r_period])
 
         mu_history.append(mu_t.copy())
@@ -284,6 +346,9 @@ def run_backtest() -> tuple:
 
         portfolio_values[t + 1] = portfolio_values[t] * (1 + port_ret)
 
+        # Feed realized return to IEWMA predictor (online update)
+        iewma_predictor.update(r_vec)
+
     start_date = returns.index[0] - pd.Timedelta(days=REBAL_DAYS)
     dates_full = pd.DatetimeIndex([start_date] + list(returns.index))
 
@@ -291,6 +356,7 @@ def run_backtest() -> tuple:
     weights_df = pd.DataFrame(weights_history, index=dates_full, columns=ASSET_ORDER)
     mu_df = pd.DataFrame(mu_history, index=returns.index, columns=ASSET_ORDER)
 
+    n_blend = sum(1 for s in sigma_source_history if s == "blend")
     diag_summary = {
         "n_periods": n_periods,
         "n_rnd_computed": len(rnd_sigmas),
@@ -301,6 +367,10 @@ def run_backtest() -> tuple:
             max(d.get("atm_iv", 0) for d in rnd_diags.values()),
         ),
         "method_history": method_history,
+        "n_iewma_blend": n_blend,
+        "iewma_weight": IEWMA_WEIGHT,
+        "mu_uncertainty": ROBUST_MU_UNCERTAINTY,
+        "cov_uncertainty": ROBUST_COV_UNCERTAINTY,
     }
 
     return portfolio_df, weights_df, returns, mu_df, diag_summary
@@ -323,11 +393,14 @@ def plot_results(
         gridspec_kw={"height_ratios": [3, 1, 1.2, 1.2]},
     )
     fig.suptitle(
-        "Markowitz++ Backtest:  SPY · ATM Call · ATM Put · Cash\n"
-        f"γ = {GAMMA}  ·  max option = {MAX_OPTION_WEIGHT:.0%}"
-        f"  ·  vol cap = {MAX_PORT_VOL:.0%}/period"
-        f"  ·  BL: {diag['n_bl']}/{diag['n_rnd_computed']}",
-        fontsize=13, fontweight="bold",
+        "Robust Markowitz++ Backtest:  SPY · ATM Call · ATM Put · Cash\n"
+        f"γ={GAMMA}  max_opt={MAX_OPTION_WEIGHT:.0%}"
+        f"  vol_cap={MAX_PORT_VOL:.0%}"
+        f"  ρ={diag.get('mu_uncertainty', 0):.3f}"
+        f"  κ={diag.get('cov_uncertainty', 0):.2f}"
+        f"  IEWMA={diag.get('iewma_weight', 0):.0%}"
+        f"  BL:{diag['n_bl']}/{diag['n_rnd_computed']}",
+        fontsize=12, fontweight="bold",
     )
 
     colors = {
@@ -363,7 +436,8 @@ def plot_results(
         f"Max DD: {max_dd:.1%}\n"
         f"Periods: {diag['n_periods']}  ({returns.index[0].date()} → {returns.index[-1].date()})\n"
         f"BL density: {diag['n_bl']}/{diag['n_rnd_computed']}  "
-        f"IV range: {iv_lo:.0%}–{iv_hi:.0%}"
+        f"IV range: {iv_lo:.0%}–{iv_hi:.0%}\n"
+        f"IEWMA blend: {diag.get('n_iewma_blend', 0)}/{diag['n_periods']} periods"
     )
     ax.text(0.98, 0.02, stats, transform=ax.transAxes, fontsize=9, va="bottom", ha="right",
             bbox=dict(boxstyle="round,pad=0.4", fc="white", alpha=0.85))
@@ -426,6 +500,10 @@ if __name__ == "__main__":
     print(f"Sharpe:   {np.mean(pr) / (np.std(pr) + 1e-12) * ann:.2f}")
     print(f"Max DD:   {np.min(pv.values / np.maximum.accumulate(pv.values)) - 1:.1%}")
     print(f"BL used:  {diag['n_bl']}/{diag['n_rnd_computed']} periods")
+    print(f"IEWMA:    {diag.get('n_iewma_blend', 0)}/{diag['n_periods']} blended"
+          f"  (weight={diag.get('iewma_weight', 0):.0%})")
+    print(f"Robust:   ρ={diag.get('mu_uncertainty', 0):.4f}"
+          f"  κ={diag.get('cov_uncertainty', 0):.2f}")
 
     print("\nFinal weights:")
     for a in ASSET_ORDER:

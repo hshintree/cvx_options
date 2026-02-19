@@ -55,6 +55,10 @@ logger = logging.getLogger(__name__)
 
 ASSET_ORDER = ["SPY", "SPY_CALL", "SPY_PUT", "USDOLLAR"]
 
+# When True, skip Breeden-Litzenberger entirely and always use lognormal IV.
+# Patched from notebook during parameter sweeps.
+FORCE_LOGNORMAL = False
+
 # Relaxed filter values used when strict filters leave too few strikes
 _RELAXED_MIN_MID = 0.02
 _RELAXED_MAX_SPREAD = 0.80
@@ -253,14 +257,151 @@ def load_chain_for_expiry(
 
 
 # ---------------------------------------------------------------------------
-# Breeden-Litzenberger density (with spline smoothing)
+# IV-space Breeden-Litzenberger density  (improved method)
+# ---------------------------------------------------------------------------
+# Instead of smoothing raw call prices (noisy), we:
+#   1. Extract OTM options (calls K>spot, puts K<spot) — most liquid
+#   2. Invert BS to get implied volatility σ(K) for each OTM strike
+#   3. Fit a 4th-degree smoothing spline to σ(K)
+#   4. Evaluate smooth C(K) = BS_Call(S, K, r, T, σ_spline(K)) on fine grid
+#   5. Numerical d²C/dK² on the smooth curve → q(K)
+# This dramatically reduces noise because IV varies slowly across strikes.
 # ---------------------------------------------------------------------------
 
+
+def _extract_otm_ivs(
+    calls: pd.DataFrame,
+    puts: pd.DataFrame,
+    spot: float,
+    r: float,
+    T: float,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Extract implied vols from OTM options: calls for K > spot, puts for K < spot.
+
+    Returns sorted arrays (strikes, ivs) covering the full range.
+    """
+    strikes_out = []
+    ivs_out = []
+
+    # OTM puts: K < spot
+    if len(puts) > 0:
+        otm_puts = puts[puts["strike"] < spot].copy()
+        for _, row in otm_puts.iterrows():
+            K = float(row["strike"])
+            mid = float(row["mid"])
+            if "impl_vol" in row and pd.notna(row.get("impl_vol")):
+                iv_chain = float(row["impl_vol"])
+                if 0.02 < iv_chain < 3.0:
+                    strikes_out.append(K)
+                    ivs_out.append(iv_chain)
+                    continue
+            iv = _bs_implied_vol(mid, spot, K, r, T, is_call=False)
+            if iv is not None and 0.02 < iv < 3.0:
+                strikes_out.append(K)
+                ivs_out.append(iv)
+
+    # OTM calls: K > spot
+    if len(calls) > 0:
+        otm_calls = calls[calls["strike"] > spot].copy()
+        for _, row in otm_calls.iterrows():
+            K = float(row["strike"])
+            mid = float(row["mid"])
+            if "impl_vol" in row and pd.notna(row.get("impl_vol")):
+                iv_chain = float(row["impl_vol"])
+                if 0.02 < iv_chain < 3.0:
+                    strikes_out.append(K)
+                    ivs_out.append(iv_chain)
+                    continue
+            iv = _bs_implied_vol(mid, spot, K, r, T, is_call=True)
+            if iv is not None and 0.02 < iv < 3.0:
+                strikes_out.append(K)
+                ivs_out.append(iv)
+
+    if len(strikes_out) < 3:
+        return np.array([]), np.array([])
+
+    strikes_arr = np.array(strikes_out)
+    ivs_arr = np.array(ivs_out)
+    order = np.argsort(strikes_arr)
+    return strikes_arr[order], ivs_arr[order]
+
+
+def _fit_iv_spline(
+    strikes: np.ndarray,
+    ivs: np.ndarray,
+    spot: float,
+) -> Optional[UnivariateSpline]:
+    """Fit a smoothing spline to the IV smile σ(K).
+
+    Uses degree-4 spline with smoothing factor proportional to the number of
+    data points.  Weights points near ATM more heavily.
+    """
+    if len(strikes) < 5:
+        return None
+    try:
+        moneyness = strikes / spot
+        weights = np.exp(-2.0 * (moneyness - 1.0) ** 2)
+        weights = np.maximum(weights, 0.1)
+
+        # s = smoothing factor; len(strikes) gives gentle smoothing
+        spline = UnivariateSpline(
+            strikes, ivs, k=4, s=len(strikes) * 0.5, w=weights,
+        )
+        return spline
+    except Exception:
+        try:
+            spline = UnivariateSpline(strikes, ivs, k=3, s=len(strikes))
+            return spline
+        except Exception:
+            return None
+
+
+def _bl_from_iv_spline(
+    iv_spline: UnivariateSpline,
+    spot: float,
+    r: float,
+    T: float,
+    K_lo: float,
+    K_hi: float,
+    n_grid: int = 500,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Breeden-Litzenberger density from a smooth IV surface.
+
+    Evaluates C(K) = BS_Call(spot, K, r, T, σ_spline(K)) on a fine grid,
+    then computes q(K) = e^{rT} * d²C/dK² numerically.
+    """
+    K_grid = np.linspace(K_lo, K_hi, n_grid)
+    iv_grid = iv_spline(K_grid)
+    iv_grid = np.clip(iv_grid, 0.02, 3.0)
+
+    sqrtT = np.sqrt(T)
+    C_grid = np.zeros(n_grid)
+    for i, (K, sigma) in enumerate(zip(K_grid, iv_grid)):
+        d1 = (np.log(spot / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrtT)
+        d2 = d1 - sigma * sqrtT
+        C_grid[i] = spot * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+
+    # Enforce monotone non-increasing (no-arb)
+    for i in range(1, n_grid):
+        C_grid[i] = min(C_grid[i], C_grid[i - 1])
+    C_grid = np.maximum(C_grid, 0.0)
+
+    dK = K_grid[1] - K_grid[0]
+    d2C = (C_grid[2:] - 2 * C_grid[1:-1] + C_grid[:-2]) / (dK ** 2)
+
+    q = np.exp(r * T) * d2C
+    q = np.maximum(q, 0.0)
+
+    frac_zero = np.mean(q <= 1e-15)
+    if frac_zero > 0.80:
+        logger.debug("IV-spline BL: %.0f%% of density is zero", 100 * frac_zero)
+        return np.array([]), np.array([])
+
+    return K_grid[1:-1], q
+
+
 def _smooth_call_prices(K: np.ndarray, C: np.ndarray) -> np.ndarray:
-    """
-    Fit a smoothing spline to call prices C(K) and enforce monotone
-    non-increasing (no-arb: calls decrease in strike).
-    """
+    """Legacy price-space smoothing (fallback when IV-space fails)."""
     try:
         spline = UnivariateSpline(K, C, k=3, s=len(K))
         C_smooth = spline(K)
@@ -278,15 +419,37 @@ def breeden_litzenberger_pdf(
     r: float,
     T: float,
     smooth: bool = True,
+    puts: Optional[pd.DataFrame] = None,
+    spot: Optional[float] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Risk-neutral density q(K) from call prices via Breeden-Litzenberger.
+    """Risk-neutral density via Breeden-Litzenberger.
 
-    Optionally smooth call prices with a spline before differentiating,
-    which dramatically reduces noise from discrete quotes.
+    **Improved method** (when puts and spot are provided):
+      Uses IV-space spline on OTM options — dramatically smoother densities.
 
-    Returns interior strikes and pdf (endpoints dropped by second derivative).
+    **Legacy fallback** (calls-only):
+      Spline on raw call prices then d²C/dK².
     """
+    # --- Try IV-space method first (preferred) ---
+    if puts is not None and spot is not None and spot > 0:
+        K_iv, IV = _extract_otm_ivs(calls, puts, spot, r, T)
+        if len(K_iv) >= 8:
+            spline = _fit_iv_spline(K_iv, IV, spot)
+            if spline is not None:
+                K_lo = max(K_iv.min(), spot * 0.80)
+                K_hi = min(K_iv.max(), spot * 1.20)
+                if K_hi - K_lo > spot * 0.05:
+                    K_grid, q = _bl_from_iv_spline(spline, spot, r, T, K_lo, K_hi)
+                    if len(K_grid) > 0:
+                        logger.info(
+                            "IV-spline BL: %d OTM IVs → %d grid points, "
+                            "IV range [%.2f, %.2f]",
+                            len(K_iv), len(K_grid), IV.min(), IV.max(),
+                        )
+                        return K_grid, q
+            logger.debug("IV-spline BL failed; falling back to price-space BL")
+
+    # --- Legacy price-space BL ---
     K = calls["strike"].values.astype(float)
     C = calls["mid"].values.astype(float)
     if len(K) < 3:
@@ -299,8 +462,6 @@ def breeden_litzenberger_pdf(
     dK_mid = (dK[1:] + dK[:-1]) / 2
     d2C = (C[2:] - 2 * C[1:-1] + C[:-2]) / (dK_mid ** 2)
 
-    # If >50% of second-derivative values are negative, the call curve
-    # is concave (no-arbitrage violated) — density is unsalvageable.
     frac_negative = np.mean(d2C <= 0)
     if frac_negative > 0.50:
         logger.debug(
@@ -574,12 +735,16 @@ def compute_rnd_forecasts(
     # but for the prototype the lognormal is the workhorse.
     T_sample = T if use_terminal_payoff else T_rebal
 
-    strikes, pdf = breeden_litzenberger_pdf(calls, r, T, smooth=True)
+    strikes, pdf = breeden_litzenberger_pdf(
+        calls, r, T, smooth=True, puts=puts, spot=spot,
+    )
     n_interior = len(strikes)
 
     bl_method = "lognormal_iv_fallback"
     bl_reject_reason = ""
-    if n_interior >= MIN_BL_STRIKES:
+    if FORCE_LOGNORMAL:
+        bl_reject_reason = "FORCE_LOGNORMAL is True — skipping BL"
+    elif n_interior >= MIN_BL_STRIKES:
         if strikes.max() < spot * 0.98 or strikes.min() > spot * 1.02:
             bl_reject_reason = (
                 "strikes don't span spot: [%.0f, %.0f] vs spot=%.0f"

@@ -63,6 +63,29 @@ MU_CLIP_SPY = (-0.10, 0.10)  # plausible biweekly SPY expected return
 MU_CLIP_OPTION = (-0.80, 0.80)  # option mu can be large due to ~20x leverage
 
 # -----------------------------------------------------------------------------
+# IEWMA covariance predictor  (from Johansson et al. 2023)
+# Each tuple is (H_vol, H_cor) in rebalance-period units
+# -----------------------------------------------------------------------------
+IEWMA_HALFLIFE_PAIRS = [
+    (2.0, 5.0),    # fast:   ~1 month vol, ~2.5 month cor
+    (4.0, 10.0),   # medium: ~2 month vol, ~5 month cor
+    (8.0, 20.0),   # slow:   ~4 month vol, ~10 month cor
+]
+IEWMA_LOOKBACK = 10  # trailing periods for CM-IEWMA log-likelihood scoring
+
+# Blend weight for IEWMA vs RND covariance:
+#   Σ_final = (1 - SIGMA_IEWMA_WEIGHT) * Σ_rnd + SIGMA_IEWMA_WEIGHT * Σ_iewma
+SIGMA_IEWMA_WEIGHT = 0.50
+
+# -----------------------------------------------------------------------------
+# Robust optimization  (from Markowitz Model with Uncertainties, MVO_70)
+# Worst-case return:  R_wc = μ'w − ρ'|w|  (long-only: (μ−ρ)'w)
+# Worst-case risk:    σ²_wc = w'(Σ + κ·diag(Σ))w  (adds diagonal uncertainty)
+# -----------------------------------------------------------------------------
+MU_UNCERTAINTY = 0.005   # ρ: per-asset return uncertainty (absolute)
+COV_UNCERTAINTY = 0.10   # κ: fractional uncertainty on covariance diagonal
+
+# -----------------------------------------------------------------------------
 # Ensure directories exist
 # -----------------------------------------------------------------------------
 for _d in (RAW_DIR, PROCESSED_DIR, OPTION_CHAINS_DIR, OPTION_CONTRACTS_DIR):
