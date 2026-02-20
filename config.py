@@ -106,9 +106,18 @@ CVAR_ALPHA = 0.95              # tail probability for CVaR (worst 5%)
 CVAR_LAMBDA = 0.25             # penalty weight on CVaR; sweep: 0.1, 0.25, 0.5
 SCENARIO_MIN_CASH_WEIGHT = 0.0 # cash floor for scenario mode (0 = let optimizer choose)
 # Scenario option-return winsorization. CVaR needs tails; None disables.
+# Do NOT cap the right tail (puts/calls paying in crash) or protection is removed.
 SCENARIO_WINSORIZE_PCT = None  # (low_pct, high_pct) or None
-# Skew dynamics: IV bumps when spot falls.  0 = sticky-strike (no skew adjustment).
-SCENARIO_SKEW_BETA = 0.30
+# Skew dynamics: IV bumps when spot falls (vol points per 100% down move).
+# Only applies when down_move exceeds threshold (not constantly taxing calls).
+# Use 2.0-3.0 for meaningful protection; beta=2 -> +0.10 vol for -5% move.
+SCENARIO_SKEW_BETA = 2.5
+SCENARIO_SKEW_THRESHOLD = 0.01  # ignore first 1% down move
+# Physical measure: equity premium for SPY scenarios (annualized).
+# If None, estimate from rolling returns; else use this constant premium.
+SCENARIO_EQUITY_PREMIUM_ANNUAL = None  # None = estimate from history, or e.g. 0.04
+# Max option weight in scenario mode (allow protection to substitute for cash).
+SCENARIO_MAX_OPTION_WEIGHT = 0.15
 
 # -----------------------------------------------------------------------------
 # Ensure directories exist

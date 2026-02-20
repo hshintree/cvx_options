@@ -158,6 +158,10 @@ def _filter_quotes(
             bad_idx = quoted.index[~ok]
             df = df.drop(bad_idx)
     keep = ["strike", "mid", "expiry"]
+    if "bid" in df.columns:
+        keep.append("bid")
+    if "ask" in df.columns:
+        keep.append("ask")
     if "impl_vol" in df.columns:
         keep.append("impl_vol")
     return df[[c for c in keep if c in df.columns]].sort_values("strike")
@@ -619,15 +623,18 @@ def _get_atm_iv(
 
 def _lognormal_sample(
     spot: float,
-    r: float,
+    mu: float,
     T: float,
     sigma: float,
     n_samples: int,
 ) -> np.ndarray:
-    """S_T = S_0 * exp((r - sigma^2/2)*T + sigma*sqrt(T)*Z)."""
+    """S_T = S_0 * exp((mu - sigma^2/2)*T + sigma*sqrt(T)*Z).
+    
+    mu: drift (annualized). Use risk-free rate r for Q measure, r+premium for P measure.
+    """
     rng = np.random.default_rng()
     Z = rng.standard_normal(n_samples)
-    return spot * np.exp((r - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
+    return spot * np.exp((mu - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
 
 
 def _bs_call_price(S: float, K: float, r: float, T: float, sigma: float) -> float:

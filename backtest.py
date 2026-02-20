@@ -44,6 +44,7 @@ from config import (
     OPTIMIZER_MODE,
     OPTION_CHAINS_DIR,
     PROCESSED_DIR,
+    SCENARIO_MAX_OPTION_WEIGHT as SCENARIO_MAX_OPT,
     SCENARIO_MIN_CASH_WEIGHT as SCENARIO_MIN_CASH,
     SCENARIO_N_SAMPLES,
     SIGMA_IEWMA_WEIGHT,
@@ -73,7 +74,7 @@ TCOST_RATE = 0.0005             # 10 bps each way
 INITIAL_VALUE = 1.0
 ROLLING_WINDOW = 26            # ~6 months of biweekly periods
 MIN_PERIODS_FOR_ROLL = 8
-MAX_OPTION_WEIGHT = 0.05       # 3% per sleeve (~60% notional via 20x leverage)
+MAX_OPTION_WEIGHT = 0.15       # 3% per sleeve (~60% notional via 20x leverage)
 MAX_SPY_WEIGHT = 1.0           # max weight in SPY equity sleeve
 MIN_CASH_WEIGHT = 0.10
 MU_SHRINKAGE = 0.5
@@ -297,6 +298,7 @@ def run_backtest() -> tuple:
                 )
                 scenario_matrices[d] = R_sc
                 rnd_diags[d] = sc_meta
+                logger.info("Scenario matrix built for %s: R shape=%s", d, R_sc.shape)
             except Exception as e:
                 logger.warning("Scenario build failed for %s: %s", d, e)
         else:
@@ -313,6 +315,8 @@ def run_backtest() -> tuple:
 
     n_forecasts = len(scenario_matrices) if use_scenario else len(rnd_sigmas)
     logger.info("Forecasts computed for %d / %d dates", n_forecasts, len(chain_dates))
+    if use_scenario:
+        logger.info("Scenario matrices stored: %d", len(scenario_matrices))
 
     # Default fallback Sigma (Markowitz mode only)
     fallback_Sigma = _regularize_sigma(
@@ -345,45 +349,72 @@ def run_backtest() -> tuple:
 
         if use_scenario:
             # ---- Scenario mode: physical mu, CVaR from scenarios ----
-            # SPY: rolling realized shrunk toward cash; CALL/PUT: 0; CASH: period rate
+            # SPY: rolling realized shrunk toward cash; CALL/PUT: scenario means; CASH: period rate
             if t >= MIN_PERIODS_FOR_ROLL:
                 lb = max(0, t - ROLLING_WINDOW)
                 spy_mean = float(returns.iloc[lb:t]["SPY"].mean())
                 mu_spy = (1 - MU_SHRINKAGE) * spy_mean + MU_SHRINKAGE * r_period
             else:
                 mu_spy = 0.005
-            mu_phys = np.array([mu_spy, 0.0, 0.0, r_period])
 
             R_sc = scenario_matrices.get(entry_date)
             if R_sc is not None:
+                # Use scenario means for options (encodes theta/vol/spreads already)
+                mu_call = float(np.mean(R_sc[:, 1]))
+                mu_put = float(np.mean(R_sc[:, 2]))
+                mu_phys = np.array([mu_spy, mu_call, mu_put, r_period])
+                
                 w_opt, solver_diag = solve_scenario(
                     R_sc, w_prev, mu_phys,
                     cvar_alpha=CVAR_A,
                     cvar_lambda=CVAR_L,
-                    max_option_weight=MAX_OPTION_WEIGHT,
+                    max_option_weight=SCENARIO_MAX_OPT,
                     max_spy_weight=MAX_SPY_WEIGHT,
                     min_cash_weight=SCENARIO_MIN_CASH,
                     max_turnover=MAX_TURNOVER,
                     tcost_rate=TCOST_RATE,
                 )
+                
+                # Portfolio CVaR vs SPY CVaR
+                port_rets = R_sc @ w_opt
+                losses_port = -port_rets
+                var_port = np.percentile(losses_port, CVAR_A * 100)
+                cvar_port = float(np.mean(losses_port[losses_port >= var_port]))
+                losses_spy = -R_sc[:, 0]
+                var_spy = np.percentile(losses_spy, CVAR_A * 100)
+                cvar_spy_scenario = float(np.mean(losses_spy[losses_spy >= var_spy]))
+                
+                sc_meta = rnd_diags.get(entry_date, {})
                 scenario_period_diag.append({
                     "date": entry_date,
                     "mu_phys_spy": float(mu_phys[0]),
+                    "mu_phys_call": float(mu_phys[1]),
+                    "mu_phys_put": float(mu_phys[2]),
                     "mean_scenario_spy": float(np.mean(R_sc[:, 0])),
                     "cvar_model": solver_diag.get("cvar_model"),
                     "cvar_empirical": solver_diag.get("cvar_empirical"),
+                    "cvar_portfolio": cvar_port,
+                    "cvar_spy": cvar_spy_scenario,
+                    "put_protection_pct": sc_meta.get("put_protection_pct"),
                     "expected_ret_phys": solver_diag.get("expected_ret_phys"),
                     "solver_status": solver_diag.get("solver_status"),
                     "weights": w_opt.copy(),
                 })
             else:
+                # No scenarios available: use fallback mu_phys
+                mu_phys = np.array([mu_spy, 0.0, 0.0, r_period])
                 w_opt = w_prev.copy()
                 scenario_period_diag.append({
                     "date": entry_date,
                     "mu_phys_spy": float(mu_phys[0]),
+                    "mu_phys_call": None,
+                    "mu_phys_put": None,
                     "mean_scenario_spy": None,
                     "cvar_model": None,
                     "cvar_empirical": None,
+                    "cvar_portfolio": None,
+                    "cvar_spy": None,
+                    "put_protection_pct": None,
                     "expected_ret_phys": None,
                     "solver_status": "no_scenarios",
                     "weights": w_opt.copy(),
@@ -612,10 +643,21 @@ if __name__ == "__main__":
         sp_diag = diag.get("scenario_period_diag") or []
         if sp_diag:
             last = sp_diag[-1]
-            print(f"  Last period: mu_phys_spy={last.get('mu_phys_spy', 0):.4f}"
-                  f"  mean_scn_spy={last.get('mean_scenario_spy', 0):.4f}"
-                  f"  cvar_model={last.get('cvar_model')}"
-                  f"  cvar_emp={last.get('cvar_empirical')}")
+            mu_spy = last.get("mu_phys_spy")
+            mu_call = last.get("mu_phys_call")
+            mu_put = last.get("mu_phys_put")
+            mean_scn = last.get("mean_scenario_spy")
+            cvar_m = last.get("cvar_model")
+            cvar_e = last.get("cvar_empirical")
+            cvar_port = last.get("cvar_portfolio")
+            cvar_spy = last.get("cvar_spy")
+            put_prot = last.get("put_protection_pct")
+            mu_val = 0.0 if mu_spy is None else float(mu_spy)
+            mu_c_val = 0.0 if mu_call is None else float(mu_call)
+            mu_p_val = 0.0 if mu_put is None else float(mu_put)
+            mean_val = 0.0 if mean_scn is None else float(mean_scn)
+            print(f"  Last period: μ_spy={mu_val:.4f} μ_call={mu_c_val:.4f} μ_put={mu_p_val:.4f}")
+            print(f"    CVaR: port={cvar_port:.4f}  SPY={cvar_spy:.4f}  put_protection={put_prot:.1f}%")
     else:
         print(f"IEWMA:    {diag.get('n_iewma_blend', 0)}/{diag['n_periods']} blended"
               f"  (weight={diag.get('iewma_weight', 0):.0%})")

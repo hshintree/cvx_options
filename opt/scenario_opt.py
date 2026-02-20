@@ -72,6 +72,13 @@ def solve_scenario_cvar(
     assert w_prev.shape == (4,), f"Bad w_prev shape: {w_prev.shape}"
     assert mu_phys.shape == (4,), f"Bad mu_phys shape: {mu_phys.shape}"
     assert not np.any(np.isnan(R)), "NaN in R"
+    assert not np.any(np.isinf(R)), "Inf in R"
+    assert not np.any(np.isnan(mu_phys)), "NaN in mu_phys"
+    assert not np.any(np.isinf(mu_phys)), "Inf in mu_phys"
+    
+    # Sanity check: if all scenario returns are extreme, warn
+    if np.any(np.abs(R) > 10.0):
+        logger.warning("Extreme returns detected in R: min=%.4f, max=%.4f", R.min(), R.max())
 
     w = cp.Variable(n_assets)
 
@@ -92,8 +99,13 @@ def solve_scenario_cvar(
     turnover = cp.norm(w - w_prev, 1)
     tcost = tcost_rate * turnover
 
-    # Objective: maximize E[return] - lambda * CVaR - tcost
-    objective = cp.Maximize(expected_ret - cvar_lambda * cvar - tcost)
+    # Mild regularization to prevent knife-edge CVaR solutions
+    # Small quadratic penalty on weights stabilizes the optimization
+    reg_weight = 1e-4
+    regularization = reg_weight * cp.sum_squares(w)
+
+    # Objective: maximize E[return] - lambda * CVaR - tcost - regularization
+    objective = cp.Maximize(expected_ret - cvar_lambda * cvar - tcost - regularization)
 
     # Weight constraints
     w_upper = np.array([max_spy_weight, max_option_weight, max_option_weight, 1.0])
@@ -109,14 +121,56 @@ def solve_scenario_cvar(
 
     prob = cp.Problem(objective, constraints)
 
-    # Prefer ECOS (LP), then Clarabel, then SCS
-    for solver in (cp.ECOS, cp.CLARABEL, cp.SCS):
+    # Prefer ECOS (LP), then Clarabel (conic), then SCS (fallback)
+    # ECOS and CLARABEL are better for LP/SOCP than SCS
+    solver_used = None
+    solver_list = [cp.ECOS]
+    
+    # Try CLARABEL if available (often best for conic problems)
+    try:
+        # Check if CLARABEL solver is available in cvxpy
+        _ = cp.CLARABEL
+        solver_list.append(cp.CLARABEL)
+    except (AttributeError, NameError):
+        pass
+    
+    # SCS as last resort
+    solver_list.append(cp.SCS)
+    
+    for solver in solver_list:
         try:
-            prob.solve(solver=solver, verbose=False, max_iters=5000)
+            solver_name = getattr(solver, "__name__", str(solver))
+            
+            # ECOS-specific settings
+            if solver == cp.ECOS:
+                prob.solve(solver=solver, verbose=False, max_iters=10000, abstol=1e-7, reltol=1e-7)
+            # CLARABEL-specific settings
+            elif solver == cp.CLARABEL:
+                prob.solve(solver=solver, verbose=False, max_iter=10000, time_limit=30.0)
+            # SCS settings
+            else:
+                prob.solve(solver=solver, verbose=False, max_iters=10000, eps=1e-6)
+            
             if prob.status in ("optimal", "optimal_inaccurate") and w.value is not None:
+                solver_used = solver_name
                 break
+            elif prob.status is None:
+                # Try with verbose to see what's wrong
+                logger.debug("Solver %s returned status=None, retrying with verbose", solver_name)
+                try:
+                    if solver == cp.ECOS:
+                        prob.solve(solver=solver, verbose=True, max_iters=10000, abstol=1e-7, reltol=1e-7)
+                    elif solver == cp.CLARABEL:
+                        prob.solve(solver=solver, verbose=True, max_iter=10000, time_limit=30.0)
+                    else:
+                        prob.solve(solver=solver, verbose=True, max_iters=10000, eps=1e-6)
+                    if prob.status in ("optimal", "optimal_inaccurate") and w.value is not None:
+                        solver_used = solver_name
+                        break
+                except Exception:
+                    pass
         except Exception as e:
-            logger.debug("Solver %s failed: %s", getattr(solver, "__name__", solver), e)
+            logger.debug("Solver %s exception: %s", getattr(solver, "__name__", solver), e)
             continue
 
     if prob.status in ("optimal", "optimal_inaccurate") and w.value is not None:
@@ -141,15 +195,36 @@ def solve_scenario_cvar(
             "mean_scenario_port": float(np.mean(port_rets_opt)),
             "expected_ret_phys": float(mu_phys @ w_opt),
             "solver_status": prob.status,
+            "solver_used": solver_used,
             "objective_value": float(prob.value) if prob.value is not None else None,
         }
         return w_opt, diag
 
-    logger.warning("Scenario CVaR solver status: %s — returning previous weights", prob.status)
+    # Solver failed: log diagnostics and return previous weights
+    logger.warning(
+        "Scenario CVaR solver failed: status=%s, solver=%s, R shape=%s, "
+        "mu_phys=[%.4f, %.4f, %.4f, %.4f], R stats: mean=[%.4f, %.4f, %.4f, %.4f], "
+        "std=[%.4f, %.4f, %.4f, %.4f]",
+        prob.status, solver_used, R.shape,
+        mu_phys[0], mu_phys[1], mu_phys[2], mu_phys[3],
+        float(np.mean(R[:, 0])), float(np.mean(R[:, 1])), float(np.mean(R[:, 2])), float(np.mean(R[:, 3])),
+        float(np.std(R[:, 0])), float(np.std(R[:, 1])), float(np.std(R[:, 2])), float(np.std(R[:, 3])),
+    )
+    
+    # Check for common issues
+    if prob.status == "infeasible":
+        logger.warning("Problem is infeasible — constraints may be too tight (turnover=%s, min_cash=%s)",
+                      max_turnover, min_cash_weight)
+    elif prob.status == "unbounded":
+        logger.warning("Problem is unbounded — check objective (mu_phys may have extreme values)")
+    elif prob.status is None:
+        logger.warning("Solver did not complete — possible numerical issues or timeout")
+    
     diag = {
         "cvar_model": None, "cvar_empirical": None, "VaR_threshold": None,
         "mean_scenario_port": None, "expected_ret_phys": None,
-        "solver_status": prob.status, "objective_value": None,
+        "solver_status": prob.status, "solver_used": solver_used,
+        "objective_value": None,
     }
     return w_prev.copy(), diag
 
