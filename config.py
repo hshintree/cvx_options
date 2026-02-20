@@ -116,8 +116,22 @@ SCENARIO_SKEW_THRESHOLD = 0.01  # ignore first 1% down move
 # Physical measure: equity premium for SPY scenarios (annualized).
 # If None, estimate from rolling returns; else use this constant premium.
 SCENARIO_EQUITY_PREMIUM_ANNUAL = None  # None = estimate from history, or e.g. 0.04
-# Max option weight in scenario mode (allow protection to substitute for cash).
-SCENARIO_MAX_OPTION_WEIGHT = 0.15
+# Max combined option weight in scenario mode (call + put together).
+# 5% keeps theta drag manageable with biweekly rolling.
+SCENARIO_MAX_OPTION_WEIGHT = 0.05
+# Put spread: long ATM put, short OTM put at (1 - width) * spot.
+# Cuts premium by 40–70% while keeping most crash protection.  0 = naked put.
+SCENARIO_PUT_SPREAD_WIDTH = 0.08  # 8% wide spread (e.g., 680/626 if spot=680)
+
+# Tactical puts: only buy protection when IV is cheap or momentum signals danger.
+# If False, always allow max_option_weight in puts (subject to combined cap).
+SCENARIO_TACTICAL_PUTS = True
+# IV cheap threshold: buy puts when ATM IV percentile < this (vs rolling window).
+SCENARIO_TACTICAL_IV_PCTILE = 0.40  # bottom 40th percentile = cheap
+SCENARIO_TACTICAL_IV_LOOKBACK = 20  # periods for IV percentile calculation
+# Momentum danger: buy puts when recent SPY return < threshold (negative momentum).
+SCENARIO_TACTICAL_MOMENTUM_THRESHOLD = -0.02  # -2% over lookback window
+SCENARIO_TACTICAL_MOMENTUM_LOOKBACK = 3  # periods for momentum calculation
 
 # -----------------------------------------------------------------------------
 # Ensure directories exist

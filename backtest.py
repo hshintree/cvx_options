@@ -47,6 +47,11 @@ from config import (
     SCENARIO_MAX_OPTION_WEIGHT as SCENARIO_MAX_OPT,
     SCENARIO_MIN_CASH_WEIGHT as SCENARIO_MIN_CASH,
     SCENARIO_N_SAMPLES,
+    SCENARIO_TACTICAL_IV_LOOKBACK,
+    SCENARIO_TACTICAL_IV_PCTILE,
+    SCENARIO_TACTICAL_MOMENTUM_LOOKBACK,
+    SCENARIO_TACTICAL_MOMENTUM_THRESHOLD,
+    SCENARIO_TACTICAL_PUTS,
     SIGMA_IEWMA_WEIGHT,
     SPY_DAILY_FILE,
     TARGET_IDEAL_DTE,
@@ -74,9 +79,9 @@ TCOST_RATE = 0.0005             # 10 bps each way
 INITIAL_VALUE = 1.0
 ROLLING_WINDOW = 26            # ~6 months of biweekly periods
 MIN_PERIODS_FOR_ROLL = 8
-MAX_OPTION_WEIGHT = 0.15       # 3% per sleeve (~60% notional via 20x leverage)
+MAX_OPTION_WEIGHT = 0.05       # 3% per sleeve (~60% notional via 20x leverage)
 MAX_SPY_WEIGHT = 1.0           # max weight in SPY equity sleeve
-MIN_CASH_WEIGHT = 0.10
+MIN_CASH_WEIGHT = 0.0
 MU_SHRINKAGE = 0.5
 MAX_PORT_VOL = 0.12           # hard cap: portfolio std per period (SOCP constraint)
 
@@ -342,33 +347,74 @@ def run_backtest() -> tuple:
     method_history = []
     sigma_source_history = []
     scenario_period_diag = []
+    
+    # Track IV and SPY returns for tactical puts
+    iv_history = []
+    spy_returns_history = []
 
     for t in range(n_periods):
         w_prev = weights_history[t]
         entry_date = chain_dates[t]
 
         if use_scenario:
-            # ---- Scenario mode: physical mu, CVaR from scenarios ----
-            # SPY: rolling realized shrunk toward cash; CALL/PUT: scenario means; CASH: period rate
-            if t >= MIN_PERIODS_FOR_ROLL:
-                lb = max(0, t - ROLLING_WINDOW)
-                spy_mean = float(returns.iloc[lb:t]["SPY"].mean())
-                mu_spy = (1 - MU_SHRINKAGE) * spy_mean + MU_SHRINKAGE * r_period
-            else:
-                mu_spy = 0.005
-
+            # ---- Scenario mode ----
+            # SPY mu from P-measure scenarios (equity premium).
+            # Option mu = 0: they're fairly priced; CVaR alone drives allocation.
+            # Using scenario means for calls inflates mu via leverage (17%/period)
+            # which causes destructive rolling drag when compounded.
             R_sc = scenario_matrices.get(entry_date)
             if R_sc is not None:
-                # Use scenario means for options (encodes theta/vol/spreads already)
-                mu_call = float(np.mean(R_sc[:, 1]))
-                mu_put = float(np.mean(R_sc[:, 2]))
+                mu_spy = float(np.mean(R_sc[:, 0]))
+                mu_call = 0.0
+                mu_put = 0.0
                 mu_phys = np.array([mu_spy, mu_call, mu_put, r_period])
+                
+                # ---- Tactical puts: only buy when IV is cheap or momentum signals danger ----
+                sc_meta = rnd_diags.get(entry_date, {})
+                current_iv = sc_meta.get("iv_put") or sc_meta.get("iv") or 0.15
+                iv_history.append(current_iv)
+                spy_ret = float(returns.iloc[t]["SPY"]) if t < len(returns) else 0.0
+                spy_returns_history.append(spy_ret)
+                
+                max_put_weight = SCENARIO_MAX_OPT  # default: allow full allocation
+                tactical_reason = "always_on"
+                
+                if SCENARIO_TACTICAL_PUTS:
+                    # Check IV percentile (cheap IV)
+                    iv_cheap = False
+                    iv_pctile = None
+                    if len(iv_history) >= SCENARIO_TACTICAL_IV_LOOKBACK:
+                        iv_window = iv_history[-SCENARIO_TACTICAL_IV_LOOKBACK:]
+                        iv_pctile = np.sum(np.array(iv_window) < current_iv) / len(iv_window)
+                        iv_cheap = iv_pctile < SCENARIO_TACTICAL_IV_PCTILE
+                    
+                    # Check momentum (negative momentum = danger)
+                    momentum_danger = False
+                    mom_sum = None
+                    if len(spy_returns_history) >= SCENARIO_TACTICAL_MOMENTUM_LOOKBACK:
+                        mom_window = spy_returns_history[-SCENARIO_TACTICAL_MOMENTUM_LOOKBACK:]
+                        mom_sum = sum(mom_window)
+                        momentum_danger = mom_sum < SCENARIO_TACTICAL_MOMENTUM_THRESHOLD
+                    
+                    # Only allow puts if IV is cheap OR momentum signals danger
+                    if iv_cheap or momentum_danger:
+                        max_put_weight = SCENARIO_MAX_OPT
+                        if iv_cheap:
+                            tactical_reason = f"IV_cheap({iv_pctile:.2f})"
+                        else:
+                            tactical_reason = f"momentum_danger({mom_sum:.3f})"
+                    else:
+                        max_put_weight = 0.0
+                        iv_str = f"{iv_pctile:.2f}" if iv_pctile is not None else "N/A"
+                        mom_str = f"{mom_sum:.3f}" if mom_sum is not None else "N/A"
+                        tactical_reason = f"IV_expensive({iv_str})_momentum_ok({mom_str})"
                 
                 w_opt, solver_diag = solve_scenario(
                     R_sc, w_prev, mu_phys,
                     cvar_alpha=CVAR_A,
                     cvar_lambda=CVAR_L,
                     max_option_weight=SCENARIO_MAX_OPT,
+                    max_put_weight=max_put_weight,
                     max_spy_weight=MAX_SPY_WEIGHT,
                     min_cash_weight=SCENARIO_MIN_CASH,
                     max_turnover=MAX_TURNOVER,
@@ -384,7 +430,6 @@ def run_backtest() -> tuple:
                 var_spy = np.percentile(losses_spy, CVAR_A * 100)
                 cvar_spy_scenario = float(np.mean(losses_spy[losses_spy >= var_spy]))
                 
-                sc_meta = rnd_diags.get(entry_date, {})
                 scenario_period_diag.append({
                     "date": entry_date,
                     "mu_phys_spy": float(mu_phys[0]),
@@ -398,11 +443,14 @@ def run_backtest() -> tuple:
                     "put_protection_pct": sc_meta.get("put_protection_pct"),
                     "expected_ret_phys": solver_diag.get("expected_ret_phys"),
                     "solver_status": solver_diag.get("solver_status"),
+                    "tactical_put_weight": max_put_weight,
+                    "tactical_reason": tactical_reason,
+                    "current_iv": current_iv,
                     "weights": w_opt.copy(),
                 })
             else:
                 # No scenarios available: use fallback mu_phys
-                mu_phys = np.array([mu_spy, 0.0, 0.0, r_period])
+                mu_phys = np.array([r_period, 0.0, 0.0, r_period])
                 w_opt = w_prev.copy()
                 scenario_period_diag.append({
                     "date": entry_date,
@@ -521,7 +569,7 @@ def plot_results(
     if mode_label == "scenario":
         param_str = (
             f"CVaR(α={diag.get('cvar_alpha', 0.95):.2f}, λ={diag.get('cvar_lambda', 2):.1f})"
-            f"  max_opt={MAX_OPTION_WEIGHT:.0%}"
+            f"  max_opt={SCENARIO_MAX_OPT:.0%}"
             f"  BL:{diag['n_bl']}/{diag['n_rnd_computed']}"
         )
     else:
@@ -534,7 +582,7 @@ def plot_results(
             f"  BL:{diag['n_bl']}/{diag['n_rnd_computed']}"
         )
     fig.suptitle(
-        f"{mode_label.title()} Backtest:  SPY · ATM Call · ATM Put · Cash\n"
+        f"{mode_label.title()} Backtest:  SPY · ATM Call · Put Spread · Cash\n"
         + param_str,
         fontsize=12, fontweight="bold",
     )
@@ -657,7 +705,16 @@ if __name__ == "__main__":
             mu_p_val = 0.0 if mu_put is None else float(mu_put)
             mean_val = 0.0 if mean_scn is None else float(mean_scn)
             print(f"  Last period: μ_spy={mu_val:.4f} μ_call={mu_c_val:.4f} μ_put={mu_p_val:.4f}")
-            print(f"    CVaR: port={cvar_port:.4f}  SPY={cvar_spy:.4f}  put_protection={put_prot:.1f}%")
+            cvar_port_v = 0.0 if cvar_port is None else float(cvar_port)
+            cvar_spy_v = 0.0 if cvar_spy is None else float(cvar_spy)
+            put_prot_v = 0.0 if put_prot is None else float(put_prot)
+            print(f"    CVaR: port={cvar_port_v:.4f}  SPY={cvar_spy_v:.4f}  put_protection={put_prot_v:.1f}%")
+            if SCENARIO_TACTICAL_PUTS:
+                tactical_wt = last.get("tactical_put_weight")
+                tactical_reason = last.get("tactical_reason", "N/A")
+                current_iv = last.get("current_iv")
+                if tactical_wt is not None:
+                    print(f"    Tactical puts: max_weight={tactical_wt:.1%}  reason={tactical_reason}  IV={current_iv:.3f}")
     else:
         print(f"IEWMA:    {diag.get('n_iewma_blend', 0)}/{diag['n_periods']} blended"
               f"  (weight={diag.get('iewma_weight', 0):.0%})")

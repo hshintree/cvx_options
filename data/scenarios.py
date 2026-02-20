@@ -27,6 +27,7 @@ from config import (
     MIN_OPTION_MID,
     REBALANCE_DAYS,
     SCENARIO_EQUITY_PREMIUM_ANNUAL,
+    SCENARIO_PUT_SPREAD_WIDTH,
     SCENARIO_SKEW_BETA,
     SCENARIO_SKEW_THRESHOLD,
     SCENARIO_WINSORIZE_PCT,
@@ -223,12 +224,13 @@ def scenario_returns(
     spot: float,
     k_atm: float,
     c0: float,
-    p0: float,
+    p_spread_entry: float,
     r: float,
     T_rebal: float,
     T_remain: float,
     iv_call: float,
     iv_put: float,
+    k_put_short: float = 0.0,
     terminal_payoff: bool = False,
     winsorize_pct: Optional[Tuple[float, float]] = None,
     skew_beta: float = 0.0,
@@ -236,51 +238,60 @@ def scenario_returns(
     half_spread_put: float = 0.0,
 ) -> np.ndarray:
     """
-    Compute (n_samples, 4) return matrix [SPY, SPY_CALL, SPY_PUT, USDOLLAR].
+    Compute (n_samples, 4) return matrix [SPY, SPY_CALL, SPY_PUT_SPREAD, USDOLLAR].
 
-    Entry prices c0, p0 should be at ask (buy at ask). Exit is modeled as
-    BS_fair - half_spread (sell at bid). Do NOT cap the right tail of
-    option returns (protection payoff); keep SCENARIO_WINSORIZE_PCT=None.
+    SPY_PUT is modeled as a **put spread** (long K_atm put, short K_lower put)
+    to cut premium by 40-70% while preserving most crash protection.
 
     Parameters
     ----------
-    iv_call, iv_put : per-strike implied vol at K_atm.
-    skew_beta       : vol points per 100%% down move; puts get full beta, calls 0.5*beta.
-    half_spread_*   : (ask - bid)/2 at entry, applied as exit haircut to BS value.
+    p_spread_entry : net premium of the put spread (long - short) at entry.
+    k_put_short    : strike of the short put leg.  0 = naked put.
     """
     n = len(S_next)
 
     r_spy = S_next / spot - 1.0
 
+    if skew_beta > 0 and not (terminal_payoff or T_remain <= 1e-6):
+        down_move = np.maximum(0.0, (spot - S_next) / spot)
+        excess_down = np.maximum(0.0, down_move - SCENARIO_SKEW_THRESHOLD)
+        bump = skew_beta * excess_down
+        sigma_c = iv_call + 0.25 * bump
+        sigma_p = iv_put + bump
+    else:
+        sigma_c = iv_call
+        sigma_p = iv_put
+
+    # --- Call leg (unchanged) ---
     if terminal_payoff or T_remain <= 1e-6:
         C1 = np.maximum(np.maximum(S_next - k_atm, 0.0) - half_spread_call, 0.0)
-        P1 = np.maximum(np.maximum(k_atm - S_next, 0.0) - half_spread_put, 0.0)
     else:
-        if skew_beta > 0:
-            down_move = np.maximum(0.0, (spot - S_next) / spot)
-            # Only apply skew bump when down_move exceeds threshold (not constantly taxing calls)
-            excess_down = np.maximum(0.0, down_move - SCENARIO_SKEW_THRESHOLD)
-            bump = skew_beta * excess_down
-            sigma_c = iv_call + 0.25 * bump  # calls get smaller bump
-            sigma_p = iv_put + bump  # puts get full bump
-        else:
-            sigma_c = iv_call
-            sigma_p = iv_put
         C1 = np.maximum(_bs_call_vec(S_next, k_atm, r, T_remain, sigma_c) - half_spread_call, 0.0)
-        P1 = np.maximum(_bs_put_vec(S_next, k_atm, r, T_remain, sigma_p) - half_spread_put, 0.0)
-
     r_call = C1 / c0 - 1.0
-    r_put = P1 / p0 - 1.0
+
+    # --- Put spread leg: long K_atm / short K_lower ---
+    if terminal_payoff or T_remain <= 1e-6:
+        P_long = np.maximum(k_atm - S_next, 0.0)
+        P_short = np.maximum(k_put_short - S_next, 0.0) if k_put_short > 0 else 0.0
+    else:
+        P_long = _bs_put_vec(S_next, k_atm, r, T_remain, sigma_p)
+        if k_put_short > 0:
+            P_short = _bs_put_vec(S_next, k_put_short, r, T_remain, sigma_p)
+        else:
+            P_short = 0.0
+
+    spread_value = np.maximum(P_long - P_short - half_spread_put, 0.0)
+    r_put_spread = spread_value / p_spread_entry - 1.0
+
     r_cash = np.full(n, np.exp(r * T_rebal) - 1.0)
 
-    # Do NOT cap the right tail (puts/calls paying in crash) or protection is removed.
     if winsorize_pct is not None:
         plo, phi = winsorize_pct
-        for arr in (r_call, r_put):
+        for arr in (r_call, r_put_spread):
             lo, hi = np.nanpercentile(arr, plo), np.nanpercentile(arr, phi)
             np.clip(arr, lo, hi, out=arr)
 
-    R = np.column_stack([r_spy, r_call, r_put, r_cash])
+    R = np.column_stack([r_spy, r_call, r_put_spread, r_cash])
 
     assert R.shape == (n, 4), f"Bad R shape: {R.shape}"
     assert not np.any(np.isnan(R)), "NaN in scenario returns"
@@ -422,10 +433,27 @@ def build_scenario_matrix(
             p0 = max(_ask, MIN_OPTION_MID)
             half_spread_p = max(0.0, (_ask - _bid) / 2.0)
 
+    # ---- Put spread: long put @ K_atm, short put @ K_lower ----
+    spread_width = SCENARIO_PUT_SPREAD_WIDTH
+    k_put_short = 0.0
+    p_spread_entry = p0
+    if spread_width > 0:
+        k_put_short = round(k_atm * (1.0 - spread_width))
+        p_short_price = _bs_put_price(sp, k_put_short, r, T, iv_put)
+        if len(puts) > 0:
+            short_rows = puts[(puts["strike"] - k_put_short).abs() <= 1.0]
+            if len(short_rows) > 0:
+                p_short_price = float(short_rows.iloc[0]["mid"])
+                if p_short_price > 100:
+                    p_short_price /= 100.0
+        p_spread_entry = max(p0 - p_short_price, MIN_OPTION_MID)
+
     # Held-contract semantics: k_atm is fixed at entry; we price that same contract forward.
     R = scenario_returns(
-        S_next, sp, k_atm, c0, p0, r, T_rebal, T_remain,
-        iv_call, iv_put, terminal_payoff,
+        S_next, sp, k_atm, c0, p_spread_entry, r, T_rebal, T_remain,
+        iv_call, iv_put,
+        k_put_short=k_put_short,
+        terminal_payoff=terminal_payoff,
         winsorize_pct=SCENARIO_WINSORIZE_PCT,
         skew_beta=SCENARIO_SKEW_BETA,
         half_spread_call=half_spread_c,
@@ -437,25 +465,29 @@ def build_scenario_matrix(
     spread_c_pct = (2 * half_spread_c / c0 * 100) if c0 > 0 else 0.0
     spread_p_pct = (2 * half_spread_p / p0 * 100) if p0 > 0 else 0.0
 
-    # Diagnostic: verify we're sampling under P (not Q)
     r_spy = R[:, 0]
-    r_cash = R[:, 3]  # [SPY, CALL, PUT, CASH]
+    r_cash = R[:, 3]
     E_r_spy = float(np.mean(r_spy))
     E_r_cash = float(np.mean(r_cash))
     cvar_alpha = 0.95
     losses_spy = -r_spy
     var_level = np.percentile(losses_spy, cvar_alpha * 100)
     cvar_spy = float(np.mean(losses_spy[losses_spy >= var_level]))
-    
-    # Protection check: % of scenarios where put return > 0 when SPY < -5%
-    crash_mask = r_spy < -0.05
-    r_put = R[:, 2]
-    put_protection_pct = float(np.mean((r_put > 0) & crash_mask) * 100) if crash_mask.any() else 0.0
+
+    # Protection: use -3% threshold (realistic for weekly returns)
+    crash_mask = r_spy < -0.03
+    r_put_spread = R[:, 2]
+    put_protection_pct = (
+        float(np.mean(r_put_spread[crash_mask] > 0) * 100) if crash_mask.any() else 0.0
+    )
+    E_r_put_spread = float(np.mean(r_put_spread))
 
     meta.update({
         "k_atm": k_atm,
         "c0": c0,
-        "p0": p0,
+        "p_spread_entry": p_spread_entry,
+        "p0_naked": p0,
+        "k_put_short": k_put_short,
         "iv_call": iv_call,
         "iv_put": iv_put,
         "skew_beta": SCENARIO_SKEW_BETA,
@@ -465,23 +497,24 @@ def build_scenario_matrix(
         "n_scenarios": n_samples,
         "pricing_mode": "terminal" if terminal_payoff else "horizon_reprice",
         "E_r_spy": E_r_spy,
+        "E_r_put_spread": E_r_put_spread,
         "E_r_cash": E_r_cash,
         "cvar_spy": cvar_spy,
         "put_protection_pct": put_protection_pct,
     })
 
+    _spread_lbl = f"spread {k_atm:.0f}/{k_put_short:.0f}" if k_put_short > 0 else "naked"
     logger.info(
         "Scenarios: %d paths, method=%s | spot=%.2f k_atm=%.0f DTE=%d mu_p=%.2f%% | "
-        "iv_call=%.2f iv_put=%.2f skew=%.2f | spread@K c=%.1f%% p=%.1f%% | "
-        "c0=%.2f p0=%.2f mode=%s",
+        "iv_call=%.2f iv_put=%.2f skew=%.2f | "
+        "c0=%.2f  put(%s)=%.2f | E[r_put]=%.4f",
         n_samples, meta["method"], sp, k_atm, dte, (mu_p_annual - r) * 100,
         iv_call, iv_put, SCENARIO_SKEW_BETA,
-        spread_c_pct, spread_p_pct,
-        c0, p0, meta["pricing_mode"],
+        c0, _spread_lbl, p_spread_entry, E_r_put_spread,
     )
     logger.info(
         "  Diagnostics: E[r_spy]=%.4f (vs cash %.4f) | CVaR_95(r_spy)=%.4f | "
-        "Put protection: %.1f%% of -5%% crash scenarios",
+        "Put protection: %.1f%% of -3%% crash scenarios",
         E_r_spy, E_r_cash, cvar_spy, put_protection_pct,
     )
 

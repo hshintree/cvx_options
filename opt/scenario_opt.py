@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import cvxpy as cp
 import numpy as np
@@ -51,6 +51,7 @@ def solve_scenario_cvar(
     cvar_alpha: float = 0.95,
     cvar_lambda: float = 0.25,
     max_option_weight: float = 0.05,
+    max_put_weight: Optional[float] = None,
     max_spy_weight: float = 1.0,
     min_cash_weight: float = 0.0,
     max_turnover: float = 0.25,
@@ -108,12 +109,14 @@ def solve_scenario_cvar(
     objective = cp.Maximize(expected_ret - cvar_lambda * cvar - tcost - regularization)
 
     # Weight constraints
-    w_upper = np.array([max_spy_weight, max_option_weight, max_option_weight, 1.0])
+    max_put = max_put_weight if max_put_weight is not None else max_option_weight
+    w_upper = np.array([max_spy_weight, max_option_weight, max_put, 1.0])
     constraints = [
         w >= 0,
         w <= w_upper,
         cp.sum(w) == 1,
         w[3] >= min_cash_weight,
+        w[1] + w[2] <= max_option_weight,  # combined call+put cap
         turnover <= max_turnover,
         u >= -port_rets - t_var,
         u >= 0,
@@ -240,6 +243,7 @@ def solve_scenario(
     cvar_alpha: float = 0.95,
     cvar_lambda: float = 0.25,
     max_option_weight: float = 0.05,
+    max_put_weight: Optional[float] = None,
     max_spy_weight: float = 1.0,
     min_cash_weight: float = 0.0,
     max_turnover: float = 0.25,
@@ -253,6 +257,7 @@ def solve_scenario(
         cvar_alpha=cvar_alpha,
         cvar_lambda=cvar_lambda,
         max_option_weight=max_option_weight,
+        max_put_weight=max_put_weight,
         max_spy_weight=max_spy_weight,
         min_cash_weight=min_cash_weight,
         max_turnover=max_turnover,
