@@ -37,6 +37,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 from config import (
+    IDIO_FRAC,
     MAX_BID_ASK_SPREAD_PCT,
     MIN_BL_STRIKES,
     MIN_OPTION_MID,
@@ -49,6 +50,7 @@ from config import (
     TARGET_IDEAL_DTE,
     TARGET_MAX_DTE,
     TARGET_MIN_DTE,
+    USE_DELTA_EQUIV_SIGMA,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,57 @@ FORCE_LOGNORMAL = False
 # Relaxed filter values used when strict filters leave too few strikes
 _RELAXED_MIN_MID = 0.02
 _RELAXED_MAX_SPREAD = 0.80
+
+
+# ---------------------------------------------------------------------------
+# Delta-equivalent risk (Fast Direction A)
+# ---------------------------------------------------------------------------
+# Pragmatic approximation: treat option variance as delta^2 * Sigma_spy_spy
+# plus a small idiosyncratic floor, so the Markowitz optimizer sees options
+# as SPY-equivalent exposure. Next step: scenario-based / factor optimization (C+E).
+
+# Default deltas for ATM options (hardcoded; no external deps).
+# SPY = 1.0; call ≈ +0.5, put ≈ -0.5.
+DEFAULT_DELTAS = {"SPY": 1.0, "SPY_CALL": 0.50, "SPY_PUT": -0.50}
+
+
+def apply_delta_equivalent_risk(
+    Sigma: pd.DataFrame,
+    deltas: Optional[Dict[str, float]] = None,
+    idio_frac: float = 0.10,
+) -> pd.DataFrame:
+    """
+    Replace the [SPY, SPY_CALL, SPY_PUT] block of Sigma so options are treated
+    as delta-equivalent SPY exposure plus a small idiosyncratic variance floor.
+    USDOLLAR variance and covariances are set to 1e-10 and 0 respectively.
+    Returns a symmetric matrix with diagonals >= 1e-10.
+    """
+    deltas = deltas or DEFAULT_DELTAS
+    Sigma_out = Sigma.copy()
+    sigma_spy = float(Sigma.loc["SPY", "SPY"])
+    risky = ["SPY", "SPY_CALL", "SPY_PUT"]
+
+    # Sigma_equiv[i,j] = delta_i * delta_j * Sigma_spy_spy
+    for i in risky:
+        for j in risky:
+            Sigma_out.loc[i, j] = deltas[i] * deltas[j] * sigma_spy
+
+    # Add idiosyncratic diagonal for options only (SPY diagonal unchanged)
+    Sigma_out.loc["SPY_CALL", "SPY_CALL"] += idio_frac * sigma_spy
+    Sigma_out.loc["SPY_PUT", "SPY_PUT"] += idio_frac * sigma_spy
+
+    # USDOLLAR: zero covariances, tiny variance
+    for a in risky:
+        Sigma_out.loc["USDOLLAR", a] = 0.0
+        Sigma_out.loc[a, "USDOLLAR"] = 0.0
+    Sigma_out.loc["USDOLLAR", "USDOLLAR"] = 1e-10
+
+    # Force symmetry and ensure PSD-ish (diagonals >= 1e-10)
+    Sigma_out = (Sigma_out + Sigma_out.T) / 2.0
+    for a in Sigma_out.index:
+        Sigma_out.loc[a, a] = max(float(Sigma_out.loc[a, a]), 1e-10)
+
+    return Sigma_out
 
 
 # ---------------------------------------------------------------------------
@@ -905,6 +958,19 @@ def compute_rnd_forecasts(
         Sigma.loc[a, a] = max(Sigma.loc[a, a], 1e-10)
 
     # ------------------------------------------------------------------
+    # 7b. Delta-equivalent Sigma (Fast Direction A)
+    # ------------------------------------------------------------------
+    sigma_mode = "raw"
+    if USE_DELTA_EQUIV_SIGMA:
+        sigma_spy_spy = float(Sigma.loc["SPY", "SPY"])
+        Sigma = apply_delta_equivalent_risk(Sigma, DEFAULT_DELTAS, IDIO_FRAC)
+        sigma_mode = "delta_equiv"
+        logger.info(
+            "Delta-equiv Sigma: sigma_spy_spy=%.6f deltas=%s idio_frac=%.2f",
+            sigma_spy_spy, DEFAULT_DELTAS, IDIO_FRAC,
+        )
+
+    # ------------------------------------------------------------------
     # 8. Diagnostics
     # ------------------------------------------------------------------
     dte = (pd.Timestamp(expiry_used) - pd.Timestamp(date_str)).days
@@ -933,6 +999,10 @@ def compute_rnd_forecasts(
             "r_put_mean_raw": r_put_raw_mean,
             "r_call_mean_after": float(mu["SPY_CALL"]),
             "r_put_mean_after": float(mu["SPY_PUT"]),
+            "sigma_mode": sigma_mode,
+            "delta_call": DEFAULT_DELTAS["SPY_CALL"],
+            "delta_put": DEFAULT_DELTAS["SPY_PUT"],
+            "idio_frac": IDIO_FRAC,
         }
         return mu, Sigma, diag
     return mu, Sigma
@@ -969,3 +1039,5 @@ if __name__ == "__main__":
         diag["r_call_mean_raw"], diag["r_call_mean_after"]))
     print("  r_put  mean: raw %.6f -> after %.6f" % (
         diag["r_put_mean_raw"], diag["r_put_mean_after"]))
+    print("  sigma_mode=%s  delta_call=%.2f  delta_put=%.2f  idio_frac=%.2f" % (
+        diag["sigma_mode"], diag["delta_call"], diag["delta_put"], diag["idio_frac"]))

@@ -36,11 +36,16 @@ sys.path.insert(0, str(ROOT))
 
 from config import (
     COV_UNCERTAINTY,
+    CVAR_ALPHA,
+    CVAR_LAMBDA,
     IEWMA_HALFLIFE_PAIRS,
     IEWMA_LOOKBACK,
     MU_UNCERTAINTY,
+    OPTIMIZER_MODE,
     OPTION_CHAINS_DIR,
     PROCESSED_DIR,
+    SCENARIO_MIN_CASH_WEIGHT as SCENARIO_MIN_CASH,
+    SCENARIO_N_SAMPLES,
     SIGMA_IEWMA_WEIGHT,
     SPY_DAILY_FILE,
     TARGET_IDEAL_DTE,
@@ -52,6 +57,8 @@ from data.forecasts import (
     _bs_put_price,
     compute_rnd_forecasts,
 )
+from data.scenarios import build_scenario_matrix
+from opt.scenario_opt import solve_scenario
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -60,22 +67,28 @@ logger = logging.getLogger(__name__)
 # Backtest parameters  (tune these in demo.ipynb)
 # -----------------------------------------------------------------------
 REBAL_DAYS = TARGET_IDEAL_DTE
-GAMMA = 10.0                   # risk-aversion (higher = less option exposure)
-MAX_TURNOVER = 0.40            # per-period turnover cap
-TCOST_RATE = 0.001             # 10 bps each way
+GAMMA = 5.0                   # risk-aversion (higher = less option exposure)
+MAX_TURNOVER = 0.25            # per-period turnover cap
+TCOST_RATE = 0.0005             # 10 bps each way
 INITIAL_VALUE = 1.0
-ROLLING_WINDOW = 13            # ~6 months of biweekly periods
-MIN_PERIODS_FOR_ROLL = 4
-MAX_OPTION_WEIGHT = 0.03       # 3% per sleeve (~60% notional via 20x leverage)
+ROLLING_WINDOW = 26            # ~6 months of biweekly periods
+MIN_PERIODS_FOR_ROLL = 8
+MAX_OPTION_WEIGHT = 0.05       # 3% per sleeve (~60% notional via 20x leverage)
 MAX_SPY_WEIGHT = 1.0           # max weight in SPY equity sleeve
 MIN_CASH_WEIGHT = 0.10
 MU_SHRINKAGE = 0.5
-MAX_PORT_VOL = 0.04            # hard cap: portfolio std per period (SOCP constraint)
+MAX_PORT_VOL = 0.12           # hard cap: portfolio std per period (SOCP constraint)
 
 # Robust optimization parameters  (patched from demo.ipynb)
 ROBUST_MU_UNCERTAINTY = MU_UNCERTAINTY       # ρ: return uncertainty per asset
 ROBUST_COV_UNCERTAINTY = COV_UNCERTAINTY     # κ: covariance diagonal boost
 IEWMA_WEIGHT = SIGMA_IEWMA_WEIGHT           # blend weight for IEWMA vs RND Sigma
+
+# Scenario optimizer parameters  (patched from demo.ipynb)
+OPT_MODE = OPTIMIZER_MODE                    # "markowitz" | "scenario"
+SCENARIO_SAMPLES = SCENARIO_N_SAMPLES
+CVAR_A = CVAR_ALPHA
+CVAR_L = CVAR_LAMBDA
 
 
 # -----------------------------------------------------------------------
@@ -261,34 +274,53 @@ def run_backtest() -> tuple:
     logger.info("Periods: %d  (%s to %s)", n_periods,
                 returns.index[0].date(), returns.index[-1].date())
 
-    # Pre-compute per-period RND Sigma from each chain snapshot
-    logger.info("Computing per-period RND forecasts ...")
+    use_scenario = (OPT_MODE == "scenario")
+    logger.info("Optimizer mode: %s", OPT_MODE)
+
+    # Pre-compute per-period RND forecasts (mu, Sigma) for Markowitz mode
+    # and scenario matrices for scenario mode.
     rnd_sigmas = {}
     rnd_mus = {}
     rnd_diags = {}
+    scenario_matrices = {}
+
+    logger.info("Computing per-period forecasts ...")
     for d in chain_dates:
         ts = pd.Timestamp(d)
         idx = spy_df.index.get_indexer([ts], method="ffill")[0]
         spot = float(spy_df.iloc[idx]["close"]) if idx >= 0 else 550.0
-        try:
-            mu_rnd, Sigma_rnd, diag = compute_rnd_forecasts(
-                chain_date=d, spot=spot, n_samples=5000, return_diagnostics=True,
-            )
-            rnd_sigmas[d] = _regularize_sigma(Sigma_rnd.values.astype(float))
-            rnd_mus[d] = mu_rnd.values.astype(float)
-            rnd_diags[d] = diag
-        except Exception as e:
-            logger.warning("RND failed for %s: %s", d, e)
 
-    logger.info("RND computed for %d / %d dates", len(rnd_sigmas), len(chain_dates))
+        if use_scenario:
+            try:
+                R_sc, sc_meta = build_scenario_matrix(
+                    chain_date=d, spot=spot, n_samples=SCENARIO_SAMPLES,
+                )
+                scenario_matrices[d] = R_sc
+                rnd_diags[d] = sc_meta
+            except Exception as e:
+                logger.warning("Scenario build failed for %s: %s", d, e)
+        else:
+            try:
+                mu_rnd, Sigma_rnd, diag = compute_rnd_forecasts(
+                    chain_date=d, spot=spot, n_samples=5000,
+                    return_diagnostics=True,
+                )
+                rnd_sigmas[d] = _regularize_sigma(Sigma_rnd.values.astype(float))
+                rnd_mus[d] = mu_rnd.values.astype(float)
+                rnd_diags[d] = diag
+            except Exception as e:
+                logger.warning("RND failed for %s: %s", d, e)
 
-    # Default fallback Sigma (option vol ≈ 20x SPY due to leverage)
+    n_forecasts = len(scenario_matrices) if use_scenario else len(rnd_sigmas)
+    logger.info("Forecasts computed for %d / %d dates", n_forecasts, len(chain_dates))
+
+    # Default fallback Sigma (Markowitz mode only)
     fallback_Sigma = _regularize_sigma(
         np.diag([0.0009, 0.36, 0.36, 1e-10])
     )
 
     # ---------------------------------------------------------------
-    # Initialize IEWMA covariance predictor (online, uses realized returns)
+    # Initialize IEWMA covariance predictor (Markowitz mode only)
     # ---------------------------------------------------------------
     n_assets = len(ASSET_ORDER)
     iewma_predictor = CMIEWMAPredictor(
@@ -305,38 +337,92 @@ def run_backtest() -> tuple:
     mu_history = []
     method_history = []
     sigma_source_history = []
+    scenario_period_diag = []
 
     for t in range(n_periods):
         w_prev = weights_history[t]
         entry_date = chain_dates[t]
 
-        # --- Sigma: blend IEWMA (historical) and RND (forward-looking) ---
-        Sigma_rnd = rnd_sigmas.get(entry_date, fallback_Sigma)
-        Sigma_iewma = iewma_predictor.predict()
+        if use_scenario:
+            # ---- Scenario mode: physical mu, CVaR from scenarios ----
+            # SPY: rolling realized shrunk toward cash; CALL/PUT: 0; CASH: period rate
+            if t >= MIN_PERIODS_FOR_ROLL:
+                lb = max(0, t - ROLLING_WINDOW)
+                spy_mean = float(returns.iloc[lb:t]["SPY"].mean())
+                mu_spy = (1 - MU_SHRINKAGE) * spy_mean + MU_SHRINKAGE * r_period
+            else:
+                mu_spy = 0.005
+            mu_phys = np.array([mu_spy, 0.0, 0.0, r_period])
 
-        if Sigma_iewma is not None and IEWMA_WEIGHT > 0:
-            Sigma_iewma = _regularize_sigma(Sigma_iewma)
-            alpha = IEWMA_WEIGHT
-            Sigma_t = (1.0 - alpha) * Sigma_rnd + alpha * Sigma_iewma
-            sigma_source_history.append("blend")
+            R_sc = scenario_matrices.get(entry_date)
+            if R_sc is not None:
+                w_opt, solver_diag = solve_scenario(
+                    R_sc, w_prev, mu_phys,
+                    cvar_alpha=CVAR_A,
+                    cvar_lambda=CVAR_L,
+                    max_option_weight=MAX_OPTION_WEIGHT,
+                    max_spy_weight=MAX_SPY_WEIGHT,
+                    min_cash_weight=SCENARIO_MIN_CASH,
+                    max_turnover=MAX_TURNOVER,
+                    tcost_rate=TCOST_RATE,
+                )
+                scenario_period_diag.append({
+                    "date": entry_date,
+                    "mu_phys_spy": float(mu_phys[0]),
+                    "mean_scenario_spy": float(np.mean(R_sc[:, 0])),
+                    "cvar_model": solver_diag.get("cvar_model"),
+                    "cvar_empirical": solver_diag.get("cvar_empirical"),
+                    "expected_ret_phys": solver_diag.get("expected_ret_phys"),
+                    "solver_status": solver_diag.get("solver_status"),
+                    "weights": w_opt.copy(),
+                })
+            else:
+                w_opt = w_prev.copy()
+                scenario_period_diag.append({
+                    "date": entry_date,
+                    "mu_phys_spy": float(mu_phys[0]),
+                    "mean_scenario_spy": None,
+                    "cvar_model": None,
+                    "cvar_empirical": None,
+                    "expected_ret_phys": None,
+                    "solver_status": "no_scenarios",
+                    "weights": w_opt.copy(),
+                })
+
+            mu_history.append(mu_phys.copy())
+            sc_meta = rnd_diags.get(entry_date, {})
+            method_history.append(sc_meta.get("method", "fallback"))
+            sigma_source_history.append("scenario")
+
         else:
-            Sigma_t = Sigma_rnd
-            sigma_source_history.append("rnd_only")
+            # ---- Markowitz mode (existing logic) ----
+            Sigma_rnd = rnd_sigmas.get(entry_date, fallback_Sigma)
+            Sigma_iewma = iewma_predictor.predict()
 
-        Sigma_t = _regularize_sigma(Sigma_t)
+            if Sigma_iewma is not None and IEWMA_WEIGHT > 0:
+                Sigma_iewma = _regularize_sigma(Sigma_iewma)
+                alpha = IEWMA_WEIGHT
+                Sigma_t = (1.0 - alpha) * Sigma_rnd + alpha * Sigma_iewma
+                sigma_source_history.append("blend")
+            else:
+                Sigma_t = Sigma_rnd
+                sigma_source_history.append("rnd_only")
 
-        # --- mu: rolling historical (physical measure) + shrinkage ---
-        if t >= MIN_PERIODS_FOR_ROLL:
-            lb = max(0, t - ROLLING_WINDOW)
-            mu_roll = returns.iloc[lb:t].mean().values.astype(float)
-            mu_t = _shrink_mu(mu_roll, r_period)
-        else:
-            mu_t = np.array([0.005, 0.0, 0.0, r_period])
+            Sigma_t = _regularize_sigma(Sigma_t)
 
-        mu_history.append(mu_t.copy())
-        method_history.append(rnd_diags.get(entry_date, {}).get("method", "fallback"))
+            if t >= MIN_PERIODS_FOR_ROLL:
+                lb = max(0, t - ROLLING_WINDOW)
+                mu_roll = returns.iloc[lb:t].mean().values.astype(float)
+                mu_t = _shrink_mu(mu_roll, r_period)
+            else:
+                mu_t = np.array([0.005, 0.0, 0.0, r_period])
 
-        w_opt = _solve_markowitz(mu_t, Sigma_t, w_prev)
+            mu_history.append(mu_t.copy())
+            method_history.append(
+                rnd_diags.get(entry_date, {}).get("method", "fallback")
+            )
+            w_opt = _solve_markowitz(mu_t, Sigma_t, w_prev)
+
         weights_history[t + 1] = w_opt
 
         r_vec = returns.iloc[t].values.astype(float)
@@ -346,7 +432,7 @@ def run_backtest() -> tuple:
 
         portfolio_values[t + 1] = portfolio_values[t] * (1 + port_ret)
 
-        # Feed realized return to IEWMA predictor (online update)
+        # Feed realized return to IEWMA (useful even in scenario mode for future blending)
         iewma_predictor.update(r_vec)
 
     start_date = returns.index[0] - pd.Timedelta(days=REBAL_DAYS)
@@ -357,20 +443,28 @@ def run_backtest() -> tuple:
     mu_df = pd.DataFrame(mu_history, index=returns.index, columns=ASSET_ORDER)
 
     n_blend = sum(1 for s in sigma_source_history if s == "blend")
+    n_scenario = sum(1 for s in sigma_source_history if s == "scenario")
     diag_summary = {
         "n_periods": n_periods,
-        "n_rnd_computed": len(rnd_sigmas),
-        "n_bl": sum(1 for d in rnd_diags.values() if d.get("method") == "breeden_litzenberger"),
-        "n_lognormal": sum(1 for d in rnd_diags.values() if d.get("method") == "lognormal_iv_fallback"),
+        "optimizer_mode": OPT_MODE,
+        "n_rnd_computed": n_forecasts,
+        "n_bl": sum(1 for d in rnd_diags.values()
+                    if d.get("method") == "breeden_litzenberger"),
+        "n_lognormal": sum(1 for d in rnd_diags.values()
+                          if d.get("method") in ("lognormal_iv_fallback", "lognormal")),
         "iv_range": (
-            min(d.get("atm_iv", 0) for d in rnd_diags.values()),
-            max(d.get("atm_iv", 0) for d in rnd_diags.values()),
+            min((d.get("atm_iv", d.get("iv", 0)) for d in rnd_diags.values()), default=0),
+            max((d.get("atm_iv", d.get("iv", 0)) for d in rnd_diags.values()), default=0),
         ),
         "method_history": method_history,
         "n_iewma_blend": n_blend,
+        "n_scenario_periods": n_scenario,
         "iewma_weight": IEWMA_WEIGHT,
         "mu_uncertainty": ROBUST_MU_UNCERTAINTY,
         "cov_uncertainty": ROBUST_COV_UNCERTAINTY,
+        "cvar_alpha": CVAR_A if use_scenario else None,
+        "cvar_lambda": CVAR_L if use_scenario else None,
+        "scenario_period_diag": scenario_period_diag if use_scenario else None,
     }
 
     return portfolio_df, weights_df, returns, mu_df, diag_summary
@@ -392,14 +486,25 @@ def plot_results(
         4, 1, figsize=(14, 14),
         gridspec_kw={"height_ratios": [3, 1, 1.2, 1.2]},
     )
+    mode_label = diag.get("optimizer_mode", "markowitz")
+    if mode_label == "scenario":
+        param_str = (
+            f"CVaR(α={diag.get('cvar_alpha', 0.95):.2f}, λ={diag.get('cvar_lambda', 2):.1f})"
+            f"  max_opt={MAX_OPTION_WEIGHT:.0%}"
+            f"  BL:{diag['n_bl']}/{diag['n_rnd_computed']}"
+        )
+    else:
+        param_str = (
+            f"γ={GAMMA}  max_opt={MAX_OPTION_WEIGHT:.0%}"
+            f"  vol_cap={MAX_PORT_VOL:.0%}"
+            f"  ρ={diag.get('mu_uncertainty', 0):.3f}"
+            f"  κ={diag.get('cov_uncertainty', 0):.2f}"
+            f"  IEWMA={diag.get('iewma_weight', 0):.0%}"
+            f"  BL:{diag['n_bl']}/{diag['n_rnd_computed']}"
+        )
     fig.suptitle(
-        "Robust Markowitz++ Backtest:  SPY · ATM Call · ATM Put · Cash\n"
-        f"γ={GAMMA}  max_opt={MAX_OPTION_WEIGHT:.0%}"
-        f"  vol_cap={MAX_PORT_VOL:.0%}"
-        f"  ρ={diag.get('mu_uncertainty', 0):.3f}"
-        f"  κ={diag.get('cov_uncertainty', 0):.2f}"
-        f"  IEWMA={diag.get('iewma_weight', 0):.0%}"
-        f"  BL:{diag['n_bl']}/{diag['n_rnd_computed']}",
+        f"{mode_label.title()} Backtest:  SPY · ATM Call · ATM Put · Cash\n"
+        + param_str,
         fontsize=12, fontweight="bold",
     )
 
@@ -490,7 +595,8 @@ if __name__ == "__main__":
     portfolio_df, weights_df, returns, mu_df, diag = run_backtest()
 
     pv = portfolio_df["value"]
-    print("\n========== Backtest Results ==========")
+    mode = diag.get("optimizer_mode", "markowitz")
+    print(f"\n========== Backtest Results ({mode}) ==========")
     print(f"Periods:  {diag['n_periods']}")
     print(f"Range:    {returns.index[0].date()} to {returns.index[-1].date()}")
     print(f"Final:    ${pv.iloc[-1]:.4f}  ({pv.iloc[-1] / INITIAL_VALUE - 1:+.2%})")
@@ -500,10 +606,21 @@ if __name__ == "__main__":
     print(f"Sharpe:   {np.mean(pr) / (np.std(pr) + 1e-12) * ann:.2f}")
     print(f"Max DD:   {np.min(pv.values / np.maximum.accumulate(pv.values)) - 1:.1%}")
     print(f"BL used:  {diag['n_bl']}/{diag['n_rnd_computed']} periods")
-    print(f"IEWMA:    {diag.get('n_iewma_blend', 0)}/{diag['n_periods']} blended"
-          f"  (weight={diag.get('iewma_weight', 0):.0%})")
-    print(f"Robust:   ρ={diag.get('mu_uncertainty', 0):.4f}"
-          f"  κ={diag.get('cov_uncertainty', 0):.2f}")
+    if mode == "scenario":
+        print(f"Scenario: {diag.get('n_scenario_periods', 0)}/{diag['n_periods']} periods"
+              f"  CVaR(α={diag.get('cvar_alpha', 0.95):.2f}, λ={diag.get('cvar_lambda', 0.25):.2f})")
+        sp_diag = diag.get("scenario_period_diag") or []
+        if sp_diag:
+            last = sp_diag[-1]
+            print(f"  Last period: mu_phys_spy={last.get('mu_phys_spy', 0):.4f}"
+                  f"  mean_scn_spy={last.get('mean_scenario_spy', 0):.4f}"
+                  f"  cvar_model={last.get('cvar_model')}"
+                  f"  cvar_emp={last.get('cvar_empirical')}")
+    else:
+        print(f"IEWMA:    {diag.get('n_iewma_blend', 0)}/{diag['n_periods']} blended"
+              f"  (weight={diag.get('iewma_weight', 0):.0%})")
+        print(f"Robust:   ρ={diag.get('mu_uncertainty', 0):.4f}"
+              f"  κ={diag.get('cov_uncertainty', 0):.2f}")
 
     print("\nFinal weights:")
     for a in ASSET_ORDER:
