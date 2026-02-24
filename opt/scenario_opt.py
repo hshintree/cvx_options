@@ -50,77 +50,129 @@ def solve_scenario_cvar(
     *,
     cvar_alpha: float = 0.95,
     cvar_lambda: float = 0.25,
+    cvar_lambda_rel: Optional[float] = None,
+    cvar_lambda_abs: float = 0.08,
     max_option_weight: float = 0.05,
     max_put_weight: Optional[float] = None,
     max_spy_weight: float = 1.0,
     min_cash_weight: float = 0.0,
     max_turnover: float = 0.25,
     tcost_rate: float = 0.0005,
+    use_rel_cvar: bool = True,
+    tracking_error_cap: Optional[float] = None,
+    min_put_weight: float = 0.0,
+    track_eps: float = -0.0005,
 ) -> Tuple[np.ndarray, dict]:
     """
     Solve the scenario-based portfolio optimization.
+    Supports single-asset (4 assets: eq, call, put, cash) or multi-asset
+    (3*K+1: eq1, call1, put1, ..., eqK, callK, putK, cash).
 
     Expected return uses mu_phys (physical/realized); CVaR from scenarios R.
 
     Returns
     -------
-    w_opt : (4,) optimal weights
+    w_opt : (n_assets,) optimal weights
     diag  : dict with cvar_model, cvar_empirical, mean_scenario_port,
-            expected_ret_phys, solver_status, VaR_threshold
+            expected_ret_phys, solver_status, VaR_loss_rel_threshold, VaR_loss_abs_threshold
     """
     N, n_assets = R.shape
-    assert n_assets == 4, f"Expected 4 assets, got {n_assets}"
-    assert w_prev.shape == (4,), f"Bad w_prev shape: {w_prev.shape}"
-    assert mu_phys.shape == (4,), f"Bad mu_phys shape: {mu_phys.shape}"
+    assert n_assets >= 4 and (n_assets - 1) % 3 == 0, (
+        f"Expected 4 or 3*K+1 assets (e.g. 4, 7, 10), got {n_assets}"
+    )
+    assert w_prev.shape == (n_assets,), f"Bad w_prev shape: {w_prev.shape}"
+    assert mu_phys.shape == (n_assets,), f"Bad mu_phys shape: {mu_phys.shape}"
     assert not np.any(np.isnan(R)), "NaN in R"
     assert not np.any(np.isinf(R)), "Inf in R"
     assert not np.any(np.isnan(mu_phys)), "NaN in mu_phys"
     assert not np.any(np.isinf(mu_phys)), "Inf in mu_phys"
-    
+
     # Sanity check: if all scenario returns are extreme, warn
     if np.any(np.abs(R) > 10.0):
         logger.warning("Extreme returns detected in R: min=%.4f, max=%.4f", R.min(), R.max())
 
     w = cp.Variable(n_assets)
 
-    # Portfolio return per scenario: (N,) — used only for CVaR
-    port_rets = R @ w  # (N,)
+    # Portfolio return per scenario: (N,)
+    port_rets = R @ w
 
-    # Expected return: physical mean (decoupled from risk-neutral scenarios)
+    # Benchmark per scenario: single-asset = equity sleeve; multi = equal-weight equities
+    n_sleeves = (n_assets - 1) // 3
+    if n_assets == 4:
+        bench = R[:, 0]
+    else:
+        eq_indices = [3 * i for i in range(n_sleeves)]
+        bench = np.mean(R[:, eq_indices], axis=1)
+
+    # Relative return: portfolio - benchmark (so "going to cash" doesn't dominate)
+    rel_rets = port_rets - bench
+
+    # Expected return: physical mean (unchanged)
     expected_ret = mu_phys @ w
 
-    # CVaR via Rockafellar–Uryasev: loss_i = -port_rets_i
-    t_var = cp.Variable()       # VaR threshold
-    u = cp.Variable(N)          # auxiliary (excess loss above VaR)
+    lambda_rel = cvar_lambda_rel if cvar_lambda_rel is not None else cvar_lambda
+    if not use_rel_cvar:
+        lambda_rel = 0.0
+    lambda_abs = cvar_lambda_abs
 
-    # CVaR ≤ t + mean(u) / (1 - alpha)
-    cvar = t_var + cp.sum(u) / (N * (1.0 - cvar_alpha))
+    # CVaR on relative loss: loss_rel_i = -rel_rets_i (Rockafellar–Uryasev)
+    t_var_rel = cp.Variable()
+    u_rel = cp.Variable(N)
+    cvar_rel = t_var_rel + cp.sum(u_rel) / (N * (1.0 - cvar_alpha))
+
+    # CVaR on absolute loss: loss_abs_i = -port_rets_i
+    t_var_abs = cp.Variable()
+    u_abs = cp.Variable(N)
+    cvar_abs = t_var_abs + cp.sum(u_abs) / (N * (1.0 - cvar_alpha))
 
     # Turnover
     turnover = cp.norm(w - w_prev, 1)
     tcost = tcost_rate * turnover
 
     # Mild regularization to prevent knife-edge CVaR solutions
-    # Small quadratic penalty on weights stabilizes the optimization
     reg_weight = 1e-4
     regularization = reg_weight * cp.sum_squares(w)
 
-    # Objective: maximize E[return] - lambda * CVaR - tcost - regularization
-    objective = cp.Maximize(expected_ret - cvar_lambda * cvar - tcost - regularization)
+    # Objective: expected_ret - λ_rel*CVaR(rel) - λ_abs*CVaR(abs) - tcost - reg
+    objective = cp.Maximize(
+        expected_ret - lambda_rel * cvar_rel - lambda_abs * cvar_abs - tcost - regularization
+    )
 
-    # Weight constraints
+    # Per-asset upper bounds: [eq, call, put] per underlying, then cash
     max_put = max_put_weight if max_put_weight is not None else max_option_weight
-    w_upper = np.array([max_spy_weight, max_option_weight, max_put, 1.0])
+    n_sleeves = (n_assets - 1) // 3
+    w_upper = np.zeros(n_assets)
+    for i in range(n_sleeves):
+        w_upper[3 * i] = max_spy_weight
+        w_upper[3 * i + 1] = max_option_weight
+        w_upper[3 * i + 2] = max_put
+    w_upper[-1] = 1.0
+
     constraints = [
         w >= 0,
         w <= w_upper,
         cp.sum(w) == 1,
-        w[3] >= min_cash_weight,
-        w[1] + w[2] <= max_option_weight,  # combined call+put cap
+        w[-1] >= min_cash_weight,
         turnover <= max_turnover,
-        u >= -port_rets - t_var,
-        u >= 0,
+        u_rel >= -rel_rets - t_var_rel,
+        u_rel >= 0,
+        u_abs >= -port_rets - t_var_abs,
+        u_abs >= 0,
     ]
+    constraints.append(cp.sum(rel_rets) / N >= track_eps)
+    # Per-sleeve call+put cap
+    for i in range(n_sleeves):
+        constraints.append(w[3 * i + 1] + w[3 * i + 2] <= max_option_weight)
+
+    if tracking_error_cap is not None and tracking_error_cap > 0:
+        constraints.append(cp.norm(rel_rets, 2) / cp.sqrt(N) <= tracking_error_cap)
+
+    if min_put_weight > 0:
+        if n_assets == 4:
+            constraints.append(w[2] >= min_put_weight)
+        else:
+            for i in range(n_sleeves):
+                constraints.append(w[3 * i + 2] >= min_put_weight)
 
     prob = cp.Problem(objective, constraints)
 
@@ -180,22 +232,40 @@ def solve_scenario_cvar(
         w_opt = np.maximum(w.value, 0.0)
         w_opt /= w_opt.sum()
 
-        # ---- Diagnostics ----
-        # CVaR from model variables (Rockafellar–Uryasev t, u)
-        cvar_model = float(t_var.value + np.sum(u.value) / (N * (1.0 - cvar_alpha)))
-
-        # CVaR empirical (sanity check from portfolio losses)
+        # ---- Diagnostics (relative + absolute CVaR) ----
         port_rets_opt = R @ w_opt
-        losses = -port_rets_opt
-        var_pct = np.percentile(losses, cvar_alpha * 100)
-        tail_mask = losses >= var_pct
-        cvar_empirical = float(np.mean(losses[tail_mask])) if tail_mask.any() else float(var_pct)
+        rel_rets_opt = port_rets_opt - bench
+        losses_rel = -rel_rets_opt
+        losses_abs = -port_rets_opt
 
+        cvar_rel_model = float(t_var_rel.value + np.sum(u_rel.value) / (N * (1.0 - cvar_alpha)))
+        var_rel_pct = np.percentile(losses_rel, cvar_alpha * 100)
+        tail_rel = losses_rel >= var_rel_pct
+        cvar_rel_empirical = float(np.mean(losses_rel[tail_rel])) if tail_rel.any() else float(var_rel_pct)
+
+        cvar_abs_model = float(t_var_abs.value + np.sum(u_abs.value) / (N * (1.0 - cvar_alpha)))
+        var_abs_pct = np.percentile(losses_abs, cvar_alpha * 100)
+        tail_abs = losses_abs >= var_abs_pct
+        cvar_abs_empirical = float(np.mean(losses_abs[tail_abs])) if tail_abs.any() else float(var_abs_pct)
+
+        mean_port = float(np.mean(port_rets_opt))
+        mean_bench = float(np.mean(bench))
+        mean_rel = float(np.mean(rel_rets_opt))
         diag = {
-            "cvar_model": cvar_model,
-            "cvar_empirical": cvar_empirical,
-            "VaR_threshold": float(t_var.value),
-            "mean_scenario_port": float(np.mean(port_rets_opt)),
+            "cvar_model": cvar_rel_model,
+            "cvar_empirical": cvar_rel_empirical,
+            "cvar_relative_model": cvar_rel_model,
+            "cvar_relative_empirical": cvar_rel_empirical,
+            "cvar_abs_model": cvar_abs_model,
+            "cvar_abs_empirical": cvar_abs_empirical,
+            "VaR_loss_rel_threshold": float(t_var_rel.value),
+            "VaR_loss_abs_threshold": float(t_var_abs.value),
+            "mean_scenario_port": mean_port,
+            "mean_port": mean_port,
+            "bench_mean": mean_bench,
+            "mean_bench": mean_bench,
+            "mean_rel_scenario_port": mean_rel,
+            "mean_rel": mean_rel,
             "expected_ret_phys": float(mu_phys @ w_opt),
             "solver_status": prob.status,
             "solver_used": solver_used,
@@ -205,13 +275,8 @@ def solve_scenario_cvar(
 
     # Solver failed: log diagnostics and return previous weights
     logger.warning(
-        "Scenario CVaR solver failed: status=%s, solver=%s, R shape=%s, "
-        "mu_phys=[%.4f, %.4f, %.4f, %.4f], R stats: mean=[%.4f, %.4f, %.4f, %.4f], "
-        "std=[%.4f, %.4f, %.4f, %.4f]",
-        prob.status, solver_used, R.shape,
-        mu_phys[0], mu_phys[1], mu_phys[2], mu_phys[3],
-        float(np.mean(R[:, 0])), float(np.mean(R[:, 1])), float(np.mean(R[:, 2])), float(np.mean(R[:, 3])),
-        float(np.std(R[:, 0])), float(np.std(R[:, 1])), float(np.std(R[:, 2])), float(np.std(R[:, 3])),
+        "Scenario CVaR solver failed: status=%s, solver=%s, R shape=%s, n_assets=%d",
+        prob.status, solver_used, R.shape, n_assets,
     )
     
     # Check for common issues
@@ -224,8 +289,13 @@ def solve_scenario_cvar(
         logger.warning("Solver did not complete — possible numerical issues or timeout")
     
     diag = {
-        "cvar_model": None, "cvar_empirical": None, "VaR_threshold": None,
-        "mean_scenario_port": None, "expected_ret_phys": None,
+        "cvar_model": None, "cvar_empirical": None,
+        "cvar_relative_model": None, "cvar_relative_empirical": None,
+        "cvar_abs_model": None, "cvar_abs_empirical": None,
+        "VaR_loss_rel_threshold": None, "VaR_loss_abs_threshold": None,
+        "mean_scenario_port": None,
+        "bench_mean": None, "mean_rel_scenario_port": None,
+        "expected_ret_phys": None,
         "solver_status": prob.status, "solver_used": solver_used,
         "objective_value": None,
     }
@@ -242,12 +312,18 @@ def solve_scenario(
     mu_phys: np.ndarray,
     cvar_alpha: float = 0.95,
     cvar_lambda: float = 0.25,
+    cvar_lambda_rel: Optional[float] = None,
+    cvar_lambda_abs: float = 0.08,
     max_option_weight: float = 0.05,
     max_put_weight: Optional[float] = None,
     max_spy_weight: float = 1.0,
     min_cash_weight: float = 0.0,
     max_turnover: float = 0.25,
     tcost_rate: float = 0.0005,
+    use_rel_cvar: bool = True,
+    tracking_error_cap: Optional[float] = None,
+    min_put_weight: float = 0.0,
+    track_eps: float = -0.0005,
 ) -> Tuple[np.ndarray, dict]:
     """
     Thin wrapper: scenario matrix R + physical mu_phys; returns (w_opt, diag).
@@ -256,12 +332,18 @@ def solve_scenario(
         R, w_prev, mu_phys,
         cvar_alpha=cvar_alpha,
         cvar_lambda=cvar_lambda,
+        cvar_lambda_rel=cvar_lambda_rel,
+        cvar_lambda_abs=cvar_lambda_abs,
         max_option_weight=max_option_weight,
         max_put_weight=max_put_weight,
         max_spy_weight=max_spy_weight,
         min_cash_weight=min_cash_weight,
         max_turnover=max_turnover,
         tcost_rate=tcost_rate,
+        use_rel_cvar=use_rel_cvar,
+        tracking_error_cap=tracking_error_cap,
+        min_put_weight=min_put_weight,
+        track_eps=track_eps,
     )
 
 
@@ -280,15 +362,21 @@ if __name__ == "__main__":
         rng.normal(-0.005, 0.10, N),   # PUT
         np.full(N, 0.001),             # CASH
     ])
-    w_prev = np.array([0.6, 0.0, 0.0, 0.4])
+    # w_prev equity-heavy so track_eps and turnover are feasible
+    w_prev = np.array([0.9, 0.0, 0.0, 0.1])
     mu_phys = np.array([0.005, 0.0, 0.0, 0.001])
 
-    w_opt, diag = solve_scenario_cvar(R_fake, w_prev, mu_phys)
+    w_opt, diag = solve_scenario_cvar(R_fake, w_prev, mu_phys, track_eps=-0.0005)
     print(f"Optimal weights: SPY={w_opt[0]:.3f}  CALL={w_opt[1]:.3f}  "
           f"PUT={w_opt[2]:.3f}  CASH={w_opt[3]:.3f}")
     print(f"  Sum: {w_opt.sum():.6f}")
     print(f"  E[port] (physical): {mu_phys @ w_opt:.4f}")
-    print(f"  cvar_model: {diag['cvar_model']:.4f}  "
-          f"cvar_empirical: {diag['cvar_empirical']:.4f}")
-    print(f"  mean_scenario_port: {diag['mean_scenario_port']:.4f}  "
-          f"solver: {diag['solver_status']}")
+    if diag.get("solver_status") in ("optimal", "optimal_inaccurate"):
+        print(f"  cvar_model: {diag['cvar_model']:.4f}  "
+              f"cvar_empirical: {diag['cvar_empirical']:.4f}")
+        print(f"  VaR_loss_rel_threshold: {diag.get('VaR_loss_rel_threshold')}  "
+              f"VaR_loss_abs_threshold: {diag.get('VaR_loss_abs_threshold')}")
+        print(f"  mean_scenario_port: {diag['mean_scenario_port']:.4f}  "
+              f"solver: {diag['solver_status']}")
+    else:
+        print(f"  solver_status: {diag.get('solver_status')}  (no diag values)")

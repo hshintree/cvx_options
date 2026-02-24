@@ -45,13 +45,16 @@ from config import (
     MU_CLIP_SPY,
     OPTION_CHAINS_DIR,
     OPTION_RETURN_WINSORIZE_PCT,
+    RAW_DIR,
     REBALANCE_DAYS,
+    SCENARIO_PUT_SPREAD_WIDTH,
     SPY_DAILY_FILE,
     TARGET_IDEAL_DTE,
     TARGET_MAX_DTE,
     TARGET_MIN_DTE,
     USE_DELTA_EQUIV_SIGMA,
 )
+from data.derivatives import build_put_spread, price_put_spread
 
 logger = logging.getLogger(__name__)
 
@@ -121,14 +124,17 @@ def apply_delta_equivalent_risk(
 # Chain loading
 # ---------------------------------------------------------------------------
 
-def _latest_chain_date() -> Optional[str]:
-    """Return latest date string (YYYY-MM-DD) for which we have calls/puts."""
-    if not OPTION_CHAINS_DIR.exists():
+def _latest_chain_date(underlying: str = "SPY") -> Optional[str]:
+    """Return latest date string (YYYY-MM-DD) for which we have calls/puts.
+    SPY: flat OPTION_CHAINS_DIR. Others: OPTION_CHAINS_DIR/{underlying}/.
+    """
+    chain_dir = OPTION_CHAINS_DIR if underlying == "SPY" else OPTION_CHAINS_DIR / underlying
+    if not chain_dir.exists():
         return None
     dates = set()
-    for f in OPTION_CHAINS_DIR.glob("calls_*.parquet"):
+    for f in chain_dir.glob("calls_*.parquet"):
         stem = f.stem.replace("calls_", "")
-        if stem:
+        if stem and not stem.startswith("_"):
             dates.add(stem)
     return max(dates) if dates else None
 
@@ -193,18 +199,21 @@ def load_chain_for_expiry(
     expiry: Optional[str] = None,
     min_mid: float = MIN_OPTION_MID,
     max_spread: float = MAX_BID_ASK_SPREAD_PCT,
+    underlying: str = "SPY",
 ) -> Tuple[pd.DataFrame, pd.DataFrame, str]:
     """
     Load calls and puts for a single expiry.
 
+    underlying: "SPY" uses flat OPTION_CHAINS_DIR. Others use OPTION_CHAINS_DIR/{underlying}/.
     When *expiry* is None the function picks the expiry with the **most valid
     call strikes** after filtering (instead of blindly using the front month).
     """
-    date_str = chain_date or _latest_chain_date()
+    chain_dir = OPTION_CHAINS_DIR if underlying == "SPY" else OPTION_CHAINS_DIR / underlying
+    date_str = chain_date or _latest_chain_date(underlying)
     if not date_str:
-        raise FileNotFoundError("No option chain found in " + str(OPTION_CHAINS_DIR))
-    path_calls = OPTION_CHAINS_DIR / f"calls_{date_str}.parquet"
-    path_puts = OPTION_CHAINS_DIR / f"puts_{date_str}.parquet"
+        raise FileNotFoundError("No option chain found in " + str(chain_dir))
+    path_calls = chain_dir / f"calls_{date_str}.parquet"
+    path_puts = chain_dir / f"puts_{date_str}.parquet"
     if not path_calls.exists() or not path_puts.exists():
         raise FileNotFoundError("Chain files not found for date " + date_str)
     all_calls = pd.read_parquet(path_calls)
@@ -222,9 +231,10 @@ def load_chain_for_expiry(
 
     # Resolve spot for strike-range scoring
     _spot_for_score = None
-    if SPY_DAILY_FILE.exists():
-        _spy = pd.read_parquet(SPY_DAILY_FILE)
-        _spot_for_score = float(_spy["close"].iloc[-1])
+    price_file = SPY_DAILY_FILE if underlying == "SPY" else RAW_DIR / f"{underlying.lower()}_daily.parquet"
+    if price_file.exists():
+        _prices = pd.read_parquet(price_file)
+        _spot_for_score = float(_prices["close"].iloc[-1])
 
     ref_date = pd.Timestamp(date_str)
 
@@ -715,6 +725,7 @@ def compute_rnd_forecasts(
     mu_clip_option: Optional[Tuple[float, float]] = None,
     rebalance_days: Optional[int] = REBALANCE_DAYS,
     return_diagnostics: bool = False,
+    underlying: str = "SPY",
 ) -> Union[Tuple[pd.Series, pd.DataFrame], Tuple[pd.Series, pd.DataFrame, Dict]]:
     """
     Sample S_{t+1} at the rebalance horizon, reprice options at t+1 via BS
@@ -742,7 +753,7 @@ def compute_rnd_forecasts(
     # 1. Load chain — strict filters first, relax if too few strikes
     # ------------------------------------------------------------------
     calls, puts, expiry_used = load_chain_for_expiry(
-        chain_date=chain_date, expiry=expiry,
+        chain_date=chain_date, expiry=expiry, underlying=underlying,
     )
     if len(calls) < MIN_BL_STRIKES:
         logger.info(
@@ -752,6 +763,7 @@ def compute_rnd_forecasts(
         calls, puts, expiry_used = load_chain_for_expiry(
             chain_date=chain_date, expiry=expiry,
             min_mid=_RELAXED_MIN_MID, max_spread=_RELAXED_MAX_SPREAD,
+            underlying=underlying,
         )
         logger.info("Relaxed filters: %d calls, %d puts", len(calls), len(puts))
 
@@ -759,13 +771,14 @@ def compute_rnd_forecasts(
     # 2. Resolve spot, rate, time-to-expiry
     # ------------------------------------------------------------------
     if spot is None:
-        if SPY_DAILY_FILE.exists():
-            spy = pd.read_parquet(SPY_DAILY_FILE)
-            spot = float(spy["close"].iloc[-1])
+        price_file = SPY_DAILY_FILE if underlying == "SPY" else RAW_DIR / f"{underlying.lower()}_daily.parquet"
+        if price_file.exists():
+            px = pd.read_parquet(price_file)
+            spot = float(px["close"].iloc[-1])
         else:
             spot = 500.0
     r = risk_free_rate if risk_free_rate is not None else 0.05
-    date_str = chain_date or _latest_chain_date()
+    date_str = chain_date or _latest_chain_date(underlying)
     T = (pd.Timestamp(expiry_used) - pd.Timestamp(date_str)).days / 365.0
     T = max(T, 1 / 365.0)
 
@@ -897,39 +910,53 @@ def compute_rnd_forecasts(
     p_atm = max(p_atm, MIN_OPTION_MID)
 
     # ------------------------------------------------------------------
-    # 5. Compute returns via horizon repricing (or terminal payoff)
+    # 5. Put sleeve: unified put spread (shared helper)
+    # ------------------------------------------------------------------
+    put_spread_width = float(SCENARIO_PUT_SPREAD_WIDTH)
+    k_put_short, p_spread_entry = build_put_spread(
+        spot, k_atm, r, T, atm_iv_used, put_spread_width, min_mid=MIN_OPTION_MID,
+    )
+    p_spread_entry = max(p_spread_entry, MIN_OPTION_MID)
+    p_short_entry = 0.0  # for diag; entry long - short already in p_spread_entry
+    if k_put_short > 0:
+        p_short_entry = float(_bs_put_price(spot, k_put_short, r, T, atm_iv_used))
+
+    # ------------------------------------------------------------------
+    # 6. Compute returns via horizon repricing (or terminal payoff)
     # ------------------------------------------------------------------
     r_spy = S_next / spot - 1.0
 
     if use_terminal_payoff:
-        # Option expires before/at next rebalance → intrinsic payoff
         C_t1 = np.maximum(S_next - k_atm, 0.0)
-        P_t1 = np.maximum(k_atm - S_next, 0.0)
+        spread_value_t1 = price_put_spread(
+            S_next, k_atm, k_put_short, r, 0.0, atm_iv_used, intrinsic_if_expired=True,
+        )
         r_cash_arr = (np.exp(r * T) - 1.0) * np.ones_like(S_next)
     else:
-        # Reprice options at t+1 with remaining time T_remain (sticky-strike IV)
         C_t1 = _bs_call_vec(S_next, k_atm, r, T_remain, atm_iv_used)
-        P_t1 = _bs_put_vec(S_next, k_atm, r, T_remain, atm_iv_used)
+        spread_value_t1 = price_put_spread(
+            S_next, k_atm, k_put_short, r, T_remain, atm_iv_used, intrinsic_if_expired=True,
+        )
         r_cash_arr = (np.exp(r * T_rebal) - 1.0) * np.ones_like(S_next)
 
     r_call = C_t1 / c_atm - 1.0
-    r_put = P_t1 / p_atm - 1.0
+    r_put_spread = spread_value_t1 / p_spread_entry - 1.0
 
     r_call_raw_mean = float(np.nanmean(r_call))
-    r_put_raw_mean = float(np.nanmean(r_put))
+    r_put_raw_mean = float(np.nanmean(r_put_spread))
 
     p_lo, p_hi = OPTION_RETURN_WINSORIZE_PCT
     c_lo, c_hi = np.nanpercentile(r_call, p_lo), np.nanpercentile(r_call, p_hi)
     r_call_w = np.clip(r_call, c_lo, c_hi)
-    pl, ph = np.nanpercentile(r_put, p_lo), np.nanpercentile(r_put, p_hi)
-    r_put_w = np.clip(r_put, pl, ph)
+    pl, ph = np.nanpercentile(r_put_spread, p_lo), np.nanpercentile(r_put_spread, p_hi)
+    r_put_w = np.clip(r_put_spread, pl, ph)
 
     n = len(r_call)
     n_call_capped = int(np.sum(r_call != r_call_w))
-    n_put_capped = int(np.sum(r_put != r_put_w))
+    n_put_capped = int(np.sum(r_put_spread != r_put_w))
 
     # ------------------------------------------------------------------
-    # 6. mu and Sigma
+    # 7. mu and Sigma (SPY_PUT column = put spread return)
     # ------------------------------------------------------------------
     M = np.column_stack([r_spy, r_call_w, r_put_w, r_cash_arr])
     mu = pd.Series(M.mean(axis=0), index=ASSET_ORDER)
@@ -946,7 +973,7 @@ def compute_rnd_forecasts(
         mu["SPY_PUT"] = np.clip(mu["SPY_PUT"], mu_clip_option[0], mu_clip_option[1])
 
     # ------------------------------------------------------------------
-    # 7. Optionally rescale option volatilities
+    # 8. Optionally rescale option volatilities
     # ------------------------------------------------------------------
     # With horizon repricing, the Monte Carlo already produces correct
     # option return variances (reflects delta leverage + time decay).
@@ -965,7 +992,7 @@ def compute_rnd_forecasts(
         Sigma.loc[a, a] = max(Sigma.loc[a, a], 1e-10)
 
     # ------------------------------------------------------------------
-    # 7b. Delta-equivalent Sigma (Fast Direction A)
+    # 8b. Delta-equivalent Sigma (Fast Direction A)
     # ------------------------------------------------------------------
     sigma_mode = "raw"
     if USE_DELTA_EQUIV_SIGMA:
@@ -978,7 +1005,7 @@ def compute_rnd_forecasts(
         )
 
     # ------------------------------------------------------------------
-    # 8. Diagnostics
+    # 9. Diagnostics
     # ------------------------------------------------------------------
     dte = (pd.Timestamp(expiry_used) - pd.Timestamp(date_str)).days
     if return_diagnostics:
@@ -1010,6 +1037,11 @@ def compute_rnd_forecasts(
             "delta_call": DEFAULT_DELTAS["SPY_CALL"],
             "delta_put": DEFAULT_DELTAS["SPY_PUT"],
             "idio_frac": IDIO_FRAC,
+            "put_is_spread": put_spread_width > 0,
+            "put_spread_width": put_spread_width,
+            "k_put_short": float(k_put_short),
+            "p_spread_entry": float(p_spread_entry),
+            "p_short_entry": float(p_short_entry),
         }
         return mu, Sigma, diag
     return mu, Sigma

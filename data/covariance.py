@@ -129,15 +129,18 @@ class CMIEWMAPredictor:
         n_assets: int,
         halflife_pairs: Optional[list[tuple[float, float]]] = None,
         lookback: int = 10,
+        temperature: float = 1.0,
     ):
         self.n = n_assets
         pairs = halflife_pairs or self.DEFAULT_HALFLIFE_PAIRS
         self.K = len(pairs)
         self.lookback = lookback
+        self.temperature = temperature
         self.predictors = [
             IEWMAPredictor(n_assets, hv, hc) for hv, hc in pairs
         ]
         self._recent_returns: list[np.ndarray] = []
+        self._last_weights: Optional[np.ndarray] = None
 
     def update(self, r: np.ndarray) -> None:
         r = np.asarray(r, dtype=float).ravel()
@@ -153,13 +156,29 @@ class CMIEWMAPredictor:
         valid = [(i, S) for i, S in enumerate(preds) if S is not None]
 
         if not valid:
+            self._last_weights = None
             return None
         if len(valid) == 1:
+            self._last_weights = np.ones(1)
             return valid[0][1]
 
         weights = self._score_weights(valid)
+        self._last_weights = weights
         Sigma = sum(w * S for w, (_, S) in zip(weights, valid))
         return (Sigma + Sigma.T) / 2.0
+
+    def predict_all(self) -> list[np.ndarray]:
+        """Return list of candidate Sigmas (one per expert) for scoring/logging."""
+        out = []
+        for p in self.predictors:
+            S = p.predict()
+            if S is not None:
+                out.append(S)
+        return out
+
+    def get_last_weights(self) -> Optional[np.ndarray]:
+        """Weights used in last predict() over valid experts (same order as predict_all)."""
+        return self._last_weights
 
     def _score_weights(self, valid: list) -> np.ndarray:
         """Inverse-variance scoring on trailing log-likelihood.
@@ -198,7 +217,7 @@ class CMIEWMAPredictor:
 
         # Softmax with temperature (prevents one predictor from dominating)
         scores -= scores.max()
-        w = np.exp(scores / 0.5)
+        w = np.exp(scores / self.temperature)
         w_sum = w.sum()
         if w_sum < 1e-15:
             return np.ones(K_valid) / K_valid

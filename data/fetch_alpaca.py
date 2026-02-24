@@ -80,19 +80,20 @@ def _get_option_client():
 # ---------------------------------------------------------------------------
 
 def make_occ_symbol(underlying: str, expiry: date, strike: float, is_call: bool) -> str:
-    """Build OCC option symbol.  e.g. SPY250228C00550000"""
+    """Build OCC option symbol.  e.g. SPY250228C00550000, AAPL250228C00150000"""
     t = "C" if is_call else "P"
     strike_int = int(round(strike * 1000))
     return f"{underlying}{expiry.strftime('%y%m%d')}{t}{strike_int:08d}"
 
 
 def parse_occ_symbol(sym: str) -> dict:
-    """Parse an OCC symbol into components."""
-    root = sym[:3]  # works for SPY
-    yy, mm, dd = int(sym[3:5]), int(sym[5:7]), int(sym[7:9])
-    is_call = sym[9] == "C"
-    strike = int(sym[10:18]) / 1000.0
+    """Parse an OCC symbol into components. Root length varies (SPY=3, AAPL=4, etc.)."""
+    # OCC: ...ROOT + YYMMDD (6) + C|P (1) + strike (8 digits)
+    strike = int(sym[-8:]) / 1000.0
+    is_call = sym[-9] == "C"
+    yy, mm, dd = int(sym[-15:-13]), int(sym[-13:-11]), int(sym[-11:-9])
     expiry = date(2000 + yy, mm, dd)
+    root = sym[:-15].strip()
     return {
         "root": root,
         "expiry": expiry,
@@ -103,28 +104,35 @@ def parse_occ_symbol(sym: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 1.  SPY daily bars
+# 1.  Stock daily bars  (SPY or any symbol)
 # ---------------------------------------------------------------------------
 
-def fetch_spy_bars(
+def fetch_stock_bars(
+    symbol: str,
     start: str = "2020-01-01",
     end: str | None = None,
     save: bool = True,
 ) -> pd.DataFrame:
-    """Fetch SPY daily bars from Alpaca and save as parquet."""
+    """Fetch daily bars for a stock from Alpaca and optionally save as parquet.
+    Saves to RAW_DIR / {symbol.lower()}_daily.parquet (SPY → spy_daily.parquet).
+    """
     from alpaca.data.requests import StockBarsRequest
     from alpaca.data.timeframe import TimeFrame
 
     client = _get_stock_client()
     end_dt = datetime.strptime(end, "%Y-%m-%d") if end else datetime.now()
     request = StockBarsRequest(
-        symbol_or_symbols="SPY",
+        symbol_or_symbols=symbol.upper(),
         timeframe=TimeFrame.Day,
         start=datetime.strptime(start, "%Y-%m-%d"),
         end=end_dt,
     )
     bars = client.get_stock_bars(request)
     df = bars.df
+
+    if df.empty:
+        logger.warning("No bars returned for %s", symbol)
+        return pd.DataFrame()
 
     # bars.df has MultiIndex (symbol, timestamp).  Flatten.
     if isinstance(df.index, pd.MultiIndex):
@@ -137,9 +145,19 @@ def fetch_spy_bars(
 
     if save:
         RAW_DIR.mkdir(parents=True, exist_ok=True)
-        df.to_parquet(SPY_DAILY_FILE, index=True)
-        logger.info("Saved SPY bars: %d rows → %s", len(df), SPY_DAILY_FILE)
+        out_path = RAW_DIR / f"{symbol.lower()}_daily.parquet"
+        df.to_parquet(out_path, index=True)
+        logger.info("Saved %s bars: %d rows → %s", symbol, len(df), out_path)
     return df
+
+
+def fetch_spy_bars(
+    start: str = "2020-01-01",
+    end: str | None = None,
+    save: bool = True,
+) -> pd.DataFrame:
+    """Fetch SPY daily bars (convenience wrapper)."""
+    return fetch_stock_bars("SPY", start=start, end=end, save=save)
 
 
 # ---------------------------------------------------------------------------
@@ -163,37 +181,42 @@ def build_cash_rate(spy_df: pd.DataFrame, annual_rate: float = 0.05, save: bool 
 # ---------------------------------------------------------------------------
 
 def fetch_current_chain(
+    underlying_symbol: str = "SPY",
     spot: float | None = None,
     dte_min: int = TARGET_MIN_DTE,
     dte_max: int = TARGET_MAX_DTE,
     save: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Fetch the live SPY option chain from Alpaca (snapshot: bid, ask, IV, greeks).
-    Saves to OPTION_CHAINS_DIR as calls_{date}.parquet / puts_{date}.parquet.
+    Fetch the live option chain from Alpaca (snapshot: bid, ask, IV, greeks).
+    Saves to OPTION_CHAINS_DIR for SPY (flat), or OPTION_CHAINS_DIR/{symbol}/ for others.
     """
     from alpaca.data.requests import OptionChainRequest
 
+    underlying_symbol = underlying_symbol.upper()
     client = _get_option_client()
     today = date.today()
 
-    if spot is None and SPY_DAILY_FILE.exists():
-        spy = pd.read_parquet(SPY_DAILY_FILE)
-        spot = float(spy["close"].iloc[-1])
-    spot = spot or 550.0
+    # Resolve spot from saved daily bars
+    if spot is None:
+        price_file = SPY_DAILY_FILE if underlying_symbol == "SPY" else RAW_DIR / f"{underlying_symbol.lower()}_daily.parquet"
+        if price_file.exists():
+            px = pd.read_parquet(price_file)
+            spot = float(px["close"].iloc[-1])
+    spot = spot or (550.0 if underlying_symbol == "SPY" else 200.0)
 
     exp_gte = (today + timedelta(days=dte_min)).isoformat()
     exp_lte = (today + timedelta(days=dte_max)).isoformat()
 
     request = OptionChainRequest(
-        underlying_symbol="SPY",
+        underlying_symbol=underlying_symbol,
         expiration_date_gte=exp_gte,
         expiration_date_lte=exp_lte,
         strike_price_gte=spot * 0.85,
         strike_price_lte=spot * 1.15,
     )
     chain = client.get_option_chain(request)
-    logger.info("Fetched option chain: %d contracts", len(chain))
+    logger.info("Fetched %s option chain: %d contracts", underlying_symbol, len(chain))
 
     rows = []
     for sym, snap in chain.items():
@@ -227,13 +250,14 @@ def fetch_current_chain(
     puts = df[~df["is_call"]].drop(columns=["is_call"]).reset_index(drop=True)
 
     if save:
-        OPTION_CHAINS_DIR.mkdir(parents=True, exist_ok=True)
+        chain_dir = OPTION_CHAINS_DIR if underlying_symbol == "SPY" else OPTION_CHAINS_DIR / underlying_symbol
+        chain_dir.mkdir(parents=True, exist_ok=True)
         date_str = today.isoformat()
-        calls.to_parquet(OPTION_CHAINS_DIR / f"calls_{date_str}.parquet", index=False)
-        puts.to_parquet(OPTION_CHAINS_DIR / f"puts_{date_str}.parquet", index=False)
+        calls.to_parquet(chain_dir / f"calls_{date_str}.parquet", index=False)
+        puts.to_parquet(chain_dir / f"puts_{date_str}.parquet", index=False)
         logger.info(
-            "Saved chain %s: %d calls, %d puts",
-            date_str, len(calls), len(puts),
+            "Saved %s chain %s: %d calls, %d puts",
+            underlying_symbol, date_str, len(calls), len(puts),
         )
     return calls, puts
 
@@ -255,10 +279,12 @@ def _candidate_expiries(ref_date: date, min_dte: int, max_dte: int) -> List[date
 def _generate_symbols(
     expiries: List[date],
     spot: float,
+    underlying: str = "SPY",
     pct_range: float = 0.10,
     strike_step: float = 1.0,
 ) -> Tuple[List[str], List[str]]:
     """Generate OCC call and put symbols for strikes near ATM."""
+    underlying = underlying.upper()
     lo = int(spot * (1 - pct_range))
     hi = int(spot * (1 + pct_range)) + 1
     strikes = np.arange(lo, hi, strike_step)
@@ -266,8 +292,8 @@ def _generate_symbols(
     call_syms, put_syms = [], []
     for exp in expiries:
         for k in strikes:
-            call_syms.append(make_occ_symbol("SPY", exp, float(k), True))
-            put_syms.append(make_occ_symbol("SPY", exp, float(k), False))
+            call_syms.append(make_occ_symbol(underlying, exp, float(k), True))
+            put_syms.append(make_occ_symbol(underlying, exp, float(k), False))
     return call_syms, put_syms
 
 
@@ -324,6 +350,7 @@ def _fetch_bars_batch(
 def fetch_historical_chain(
     chain_date: date,
     spot: float,
+    underlying: str = "SPY",
     min_dte: int = TARGET_MIN_DTE,
     max_dte: int = TARGET_MAX_DTE,
     save: bool = True,
@@ -335,17 +362,19 @@ def fetch_historical_chain(
     2. Generate OCC symbols for ATM ± 10% strikes.
     3. Fetch daily bars on chain_date for those symbols.
     4. Parse into calls/puts DataFrames matching the format forecasts.py expects.
+    Saves to OPTION_CHAINS_DIR (SPY) or OPTION_CHAINS_DIR/{underlying}/ for others.
     """
+    underlying = underlying.upper()
     expiries = _candidate_expiries(chain_date, min_dte, max_dte)
     if not expiries:
         logger.warning("No candidate expiries for %s (DTE %d-%d)", chain_date, min_dte, max_dte)
         return pd.DataFrame(), pd.DataFrame()
 
-    call_syms, put_syms = _generate_symbols(expiries, spot)
+    call_syms, put_syms = _generate_symbols(expiries, spot, underlying=underlying)
     all_syms = call_syms + put_syms
     logger.info(
-        "Fetching bars for %s: spot=%.0f, %d expiries, %d symbols",
-        chain_date, spot, len(expiries), len(all_syms),
+        "Fetching bars for %s %s: spot=%.0f, %d expiries, %d symbols",
+        underlying, chain_date, spot, len(expiries), len(all_syms),
     )
 
     bars_df = _fetch_bars_batch(all_syms, chain_date)
@@ -389,10 +418,11 @@ def fetch_historical_chain(
     )
 
     if save:
-        OPTION_CHAINS_DIR.mkdir(parents=True, exist_ok=True)
+        chain_dir = OPTION_CHAINS_DIR if underlying == "SPY" else OPTION_CHAINS_DIR / underlying
+        chain_dir.mkdir(parents=True, exist_ok=True)
         date_str = chain_date.isoformat()
-        calls.to_parquet(OPTION_CHAINS_DIR / f"calls_{date_str}.parquet", index=False)
-        puts.to_parquet(OPTION_CHAINS_DIR / f"puts_{date_str}.parquet", index=False)
+        calls.to_parquet(chain_dir / f"calls_{date_str}.parquet", index=False)
+        puts.to_parquet(chain_dir / f"puts_{date_str}.parquet", index=False)
 
     return calls, puts
 
@@ -422,11 +452,19 @@ def compute_rebalance_dates(
 # 6.  Full pipeline
 # ---------------------------------------------------------------------------
 
-def _extend_chain(chain_date: date, spot: float, new_min_dte: int, new_max_dte: int):
+def _extend_chain(
+    chain_date: date,
+    spot: float,
+    new_min_dte: int,
+    new_max_dte: int,
+    underlying: str = "SPY",
+):
     """Fetch additional expiries and merge into existing chain parquets."""
+    underlying = underlying.upper()
+    chain_dir = OPTION_CHAINS_DIR if underlying == "SPY" else OPTION_CHAINS_DIR / underlying
     date_str = chain_date.isoformat()
-    calls_path = OPTION_CHAINS_DIR / f"calls_{date_str}.parquet"
-    puts_path = OPTION_CHAINS_DIR / f"puts_{date_str}.parquet"
+    calls_path = chain_dir / f"calls_{date_str}.parquet"
+    puts_path = chain_dir / f"puts_{date_str}.parquet"
 
     old_calls = pd.read_parquet(calls_path) if calls_path.exists() else pd.DataFrame()
     old_puts = pd.read_parquet(puts_path) if puts_path.exists() else pd.DataFrame()
@@ -450,7 +488,7 @@ def _extend_chain(chain_date: date, spot: float, new_min_dte: int, new_max_dte: 
         logger.debug("Chain %s already has DTE %d-%d covered", chain_date, new_min_dte, new_max_dte)
         return
 
-    call_syms, put_syms = _generate_symbols(needed_expiries, spot)
+    call_syms, put_syms = _generate_symbols(needed_expiries, spot, underlying=underlying)
     all_syms = call_syms + put_syms
     logger.info(
         "Extending chain %s: %d new expiries (%d symbols)",
@@ -495,9 +533,53 @@ def _extend_chain(chain_date: date, spot: float, new_min_dte: int, new_max_dte: 
         subset=["contractSymbol"], keep="last",
     )
 
+    chain_dir.mkdir(parents=True, exist_ok=True)
     merged_calls.to_parquet(calls_path, index=False)
     merged_puts.to_parquet(puts_path, index=False)
-    logger.info("Extended %s: now %d calls, %d puts", chain_date, len(merged_calls), len(merged_puts))
+    logger.info("Extended %s %s: now %d calls, %d puts", underlying, chain_date, len(merged_calls), len(merged_puts))
+
+
+def run_pipeline_for_symbol(
+    symbol: str,
+    start: str = "2020-01-01",
+    end: str | None = None,
+    fetch_historical: bool = True,
+    period_days: int = TARGET_IDEAL_DTE,
+) -> None:
+    """
+    Fetch daily bars, current option chain, and (optionally) historical chains
+    for a single underlying (e.g. AAPL, CRWD). Uses that symbol's calendar for
+    rebalance dates. Does not build cash rate (use SPY pipeline for that).
+    """
+    symbol = symbol.upper()
+    logger.info("=== Pipeline for %s ===", symbol)
+
+    stock_df = fetch_stock_bars(symbol, start=start, end=end, save=True)
+    if stock_df.empty:
+        logger.warning("No bars for %s; skipping chain fetch", symbol)
+        return
+
+    spot = float(stock_df["close"].iloc[-1])
+    logger.info("%s spot: %.2f", symbol, spot)
+    fetch_current_chain(underlying_symbol=symbol, spot=spot, save=True)
+
+    if fetch_historical:
+        rebal_dates = compute_rebalance_dates(stock_df, period_days=period_days)
+        logger.info("Rebalance dates: %d", len(rebal_dates))
+        for i, rd in enumerate(rebal_dates):
+            rd_ts = pd.Timestamp(rd)
+            spot_row = stock_df.index.get_indexer([rd_ts], method="ffill")
+            spot_rd = float(stock_df.iloc[spot_row[0]]["close"]) if spot_row[0] >= 0 else spot
+            chain_dir = OPTION_CHAINS_DIR if symbol == "SPY" else OPTION_CHAINS_DIR / symbol
+            chain_file = chain_dir / f"calls_{rd.isoformat()}.parquet"
+            if chain_file.exists():
+                logger.info("[%d/%d] %s — cached", i + 1, len(rebal_dates), rd)
+                continue
+            logger.info("[%d/%d] Fetching chain for %s %s (spot=%.0f)", i + 1, len(rebal_dates), symbol, rd, spot_rd)
+            fetch_historical_chain(rd, spot_rd, underlying=symbol, save=True)
+            time.sleep(_API_SLEEP)
+
+    logger.info("=== %s pipeline complete ===", symbol)
 
 
 def run_full_pipeline(
@@ -546,11 +628,11 @@ def run_full_pipeline(
 
             if chain_file.exists() and extend_dte:
                 logger.info("[%d/%d] %s — extending DTE range ...", i + 1, len(rebal_dates), rd)
-                _extend_chain(rd, spot_rd, TARGET_MIN_DTE, TARGET_MAX_DTE)
+                _extend_chain(rd, spot_rd, TARGET_MIN_DTE, TARGET_MAX_DTE, underlying="SPY")
                 time.sleep(_API_SLEEP)
             else:
                 logger.info("[%d/%d] Fetching chain for %s (spot=%.0f) ...", i + 1, len(rebal_dates), rd, spot_rd)
-                fetch_historical_chain(rd, spot_rd, save=True)
+                fetch_historical_chain(rd, spot_rd, underlying="SPY", save=True)
                 time.sleep(_API_SLEEP)
 
     logger.info("=== Pipeline complete ===")
@@ -561,5 +643,42 @@ def run_full_pipeline(
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    import argparse
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    run_full_pipeline()
+    parser = argparse.ArgumentParser(description="Fetch Alpaca data (SPY, AAPL, CRWD, etc.).")
+    parser.add_argument(
+        "--symbols",
+        nargs="+",
+        default=["SPY"],
+        help="Underlying symbols to fetch (e.g. SPY AAPL CRWD). Default: SPY.",
+    )
+    parser.add_argument("--start", default="2020-01-01", help="Start date for daily bars.")
+    parser.add_argument("--end", default=None, help="End date for daily bars (default: today).")
+    parser.add_argument(
+        "--no-historical",
+        action="store_true",
+        help="Skip historical option chain fetch; only bars + current chain.",
+    )
+    parser.add_argument(
+        "--period-days",
+        type=int,
+        default=TARGET_IDEAL_DTE,
+        help="Rebalance period in trading days for historical chains.",
+    )
+    args = parser.parse_args()
+
+    symbols = [s.upper() for s in args.symbols]
+    if "SPY" in symbols:
+        run_full_pipeline(spy_start=args.start, spy_end=args.end, fetch_historical=not args.no_historical)
+        time.sleep(_API_SLEEP)
+    for sym in symbols:
+        if sym == "SPY":
+            continue
+        run_pipeline_for_symbol(
+            sym,
+            start=args.start,
+            end=args.end,
+            fetch_historical=not args.no_historical,
+            period_days=args.period_days,
+        )
+        time.sleep(_API_SLEEP)

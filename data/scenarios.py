@@ -25,6 +25,7 @@ if str(_ROOT) not in sys.path:
 from config import (
     MIN_BL_STRIKES,
     MIN_OPTION_MID,
+    RAW_DIR,
     REBALANCE_DAYS,
     SCENARIO_EQUITY_PREMIUM_ANNUAL,
     SCENARIO_PUT_SPREAD_WIDTH,
@@ -33,6 +34,7 @@ from config import (
     SCENARIO_WINSORIZE_PCT,
     SPY_DAILY_FILE,
 )
+from data.derivatives import build_put_spread
 from data.forecasts import (
     ASSET_ORDER,
     FORCE_LOGNORMAL,
@@ -62,33 +64,35 @@ def _estimate_physical_drift(
     chain_date: Optional[str] = None,
     risk_free_rate: float = 0.05,
     lookback_days: int = 252,
+    underlying: str = "SPY",
 ) -> float:
     """Estimate annualized physical drift mu_p = r + equity_premium from rolling returns.
     
     If SCENARIO_EQUITY_PREMIUM_ANNUAL is set, use r + that constant.
-    Otherwise estimate from SPY history (rolling mean of log returns).
+    Otherwise estimate from underlying history (rolling mean of log returns).
     """
     if SCENARIO_EQUITY_PREMIUM_ANNUAL is not None:
         return risk_free_rate + SCENARIO_EQUITY_PREMIUM_ANNUAL
     
     import pandas as pd
-    if not SPY_DAILY_FILE.exists():
+    price_file = SPY_DAILY_FILE if underlying == "SPY" else RAW_DIR / f"{underlying.lower()}_daily.parquet"
+    if not price_file.exists():
         return risk_free_rate + 0.04  # fallback: 4% premium
     
-    spy = pd.read_parquet(SPY_DAILY_FILE)
-    spy.index = pd.to_datetime(spy.index).tz_localize(None) if spy.index.tz else pd.to_datetime(spy.index)
+    px = pd.read_parquet(price_file)
+    px.index = pd.to_datetime(px.index).tz_localize(None) if px.index.tz else pd.to_datetime(px.index)
     
-    date_str = chain_date or _latest_chain_date()
+    date_str = chain_date or _latest_chain_date(underlying)
     if date_str:
         ref_date = pd.Timestamp(date_str)
-        spy = spy[spy.index <= ref_date]
+        px = px[px.index <= ref_date]
     
-    if len(spy) < 20:
+    if len(px) < 20:
         return risk_free_rate + 0.04
     
-    spy = spy.sort_index()
-    spy["log_return"] = np.log(spy["close"] / spy["close"].shift(1))
-    recent = spy["log_return"].iloc[-lookback_days:].dropna()
+    px = px.sort_index()
+    px["log_return"] = np.log(px["close"] / px["close"].shift(1))
+    recent = px["log_return"].iloc[-lookback_days:].dropna()
     
     if len(recent) < 20:
         return risk_free_rate + 0.04
@@ -105,6 +109,7 @@ def generate_spy_scenarios(
     method: str = "auto",
     risk_free_rate: float = 0.05,
     rebalance_days: Optional[int] = REBALANCE_DAYS,
+    underlying: str = "SPY",
 ) -> Tuple[np.ndarray, Dict]:
     """
     Sample S_next (spot at rebalance horizon) under PHYSICAL measure (P).
@@ -125,24 +130,26 @@ def generate_spy_scenarios(
     """
     import pandas as pd
 
-    calls, puts, expiry_used = load_chain_for_expiry(chain_date=chain_date)
+    calls, puts, expiry_used = load_chain_for_expiry(chain_date=chain_date, underlying=underlying)
     if len(calls) < MIN_BL_STRIKES:
         calls, puts, expiry_used = load_chain_for_expiry(
             chain_date=chain_date,
             min_mid=_RELAXED_MIN_MID,
             max_spread=_RELAXED_MAX_SPREAD,
+            underlying=underlying,
         )
 
     if spot is None:
-        if SPY_DAILY_FILE.exists():
-            spy = pd.read_parquet(SPY_DAILY_FILE)
-            spot = float(spy["close"].iloc[-1])
+        price_file = SPY_DAILY_FILE if underlying == "SPY" else RAW_DIR / f"{underlying.lower()}_daily.parquet"
+        if price_file.exists():
+            px = pd.read_parquet(price_file)
+            spot = float(px["close"].iloc[-1])
         else:
             spot = 500.0
 
     r = risk_free_rate
-    mu_p_annual = _estimate_physical_drift(chain_date, r)
-    date_str = chain_date or _latest_chain_date()
+    mu_p_annual = _estimate_physical_drift(chain_date, r, underlying=underlying)
+    date_str = chain_date or _latest_chain_date(underlying)
     T = max((pd.Timestamp(expiry_used) - pd.Timestamp(date_str)).days / 365.0,
             1 / 365.0)
 
@@ -309,6 +316,7 @@ def build_scenario_matrix(
     method: str = "auto",
     risk_free_rate: float = 0.05,
     rebalance_days: Optional[int] = REBALANCE_DAYS,
+    underlying: str = "SPY",
 ) -> Tuple[np.ndarray, Dict]:
     """
     Build the (n_samples, 4) return matrix R and metadata dict.
@@ -328,6 +336,7 @@ def build_scenario_matrix(
         method=method,
         risk_free_rate=risk_free_rate,
         rebalance_days=rebalance_days,
+        underlying=underlying,
     )
 
     sp = meta["spot"]
@@ -339,12 +348,13 @@ def build_scenario_matrix(
     r = risk_free_rate
 
     # ATM strike and entry prices — same logic as compute_rnd_forecasts
-    calls, puts, _ = load_chain_for_expiry(chain_date=chain_date)
+    calls, puts, _ = load_chain_for_expiry(chain_date=chain_date, underlying=underlying)
     if len(calls) < MIN_BL_STRIKES:
         calls, puts, _ = load_chain_for_expiry(
             chain_date=chain_date,
             min_mid=_RELAXED_MIN_MID,
             max_spread=_RELAXED_MAX_SPREAD,
+            underlying=underlying,
         )
 
     k_atm = sp
@@ -433,20 +443,12 @@ def build_scenario_matrix(
             p0 = max(_ask, MIN_OPTION_MID)
             half_spread_p = max(0.0, (_ask - _bid) / 2.0)
 
-    # ---- Put spread: long put @ K_atm, short put @ K_lower ----
+    # ---- Put spread: unified definition (shared helper) ----
     spread_width = SCENARIO_PUT_SPREAD_WIDTH
-    k_put_short = 0.0
-    p_spread_entry = p0
-    if spread_width > 0:
-        k_put_short = round(k_atm * (1.0 - spread_width))
-        p_short_price = _bs_put_price(sp, k_put_short, r, T, iv_put)
-        if len(puts) > 0:
-            short_rows = puts[(puts["strike"] - k_put_short).abs() <= 1.0]
-            if len(short_rows) > 0:
-                p_short_price = float(short_rows.iloc[0]["mid"])
-                if p_short_price > 100:
-                    p_short_price /= 100.0
-        p_spread_entry = max(p0 - p_short_price, MIN_OPTION_MID)
+    k_put_short, p_spread_entry = build_put_spread(
+        sp, k_atm, r, T, iv_put, spread_width, min_mid=MIN_OPTION_MID,
+    )
+    p_spread_entry = max(p_spread_entry, MIN_OPTION_MID)
 
     # Held-contract semantics: k_atm is fixed at entry; we price that same contract forward.
     R = scenario_returns(
@@ -474,13 +476,18 @@ def build_scenario_matrix(
     var_level = np.percentile(losses_spy, cvar_alpha * 100)
     cvar_spy = float(np.mean(losses_spy[losses_spy >= var_level]))
 
-    # Protection: use -3% threshold (realistic for weekly returns)
+    # Protection and carry diagnostics
     crash_mask = r_spy < -0.03
+    noncrash_mask = r_spy > -0.01   # "normal" scenarios for carry
     r_put_spread = R[:, 2]
     put_protection_pct = (
         float(np.mean(r_put_spread[crash_mask] > 0) * 100) if crash_mask.any() else 0.0
     )
     E_r_put_spread = float(np.mean(r_put_spread))
+    # Carry: E[r_put | r_spy > -1%]; crash payoff: E[r_put | r_spy < -3%]; freq of crash
+    E_r_put_carry = float(np.mean(r_put_spread[noncrash_mask])) if noncrash_mask.any() else np.nan
+    E_r_put_crash = float(np.mean(r_put_spread[crash_mask])) if crash_mask.any() else np.nan
+    freq_crash = float(np.mean(r_spy < -0.03))
 
     meta.update({
         "k_atm": k_atm,
@@ -498,6 +505,9 @@ def build_scenario_matrix(
         "pricing_mode": "terminal" if terminal_payoff else "horizon_reprice",
         "E_r_spy": E_r_spy,
         "E_r_put_spread": E_r_put_spread,
+        "E_r_put_carry": E_r_put_carry,
+        "E_r_put_crash": E_r_put_crash,
+        "freq_crash": freq_crash,
         "E_r_cash": E_r_cash,
         "cvar_spy": cvar_spy,
         "put_protection_pct": put_protection_pct,
@@ -514,10 +524,55 @@ def build_scenario_matrix(
     )
     logger.info(
         "  Diagnostics: E[r_spy]=%.4f (vs cash %.4f) | CVaR_95(r_spy)=%.4f | "
-        "Put protection: %.1f%% of -3%% crash scenarios",
-        E_r_spy, E_r_cash, cvar_spy, put_protection_pct,
+        "Put: carry E[r_put|r_spy>-1%%]=%.4f crash E[r_put|r_spy<-3%%]=%.4f freq_crash=%.2f%% | "
+        "put_protection_pct=%.1f%%",
+        E_r_spy, E_r_cash, cvar_spy,
+        E_r_put_carry, E_r_put_crash, freq_crash * 100, put_protection_pct,
     )
 
+    return R, meta
+
+
+# ---------------------------------------------------------------------------
+# 4. Multi-asset scenario matrix (stack per-underlying scenario matrices)
+# ---------------------------------------------------------------------------
+
+def build_multi_asset_scenario_matrix(
+    underlyings: list,
+    chain_date: Optional[str],
+    spots: dict,
+    n_samples: int = 10_000,
+    risk_free_rate: float = 0.05,
+    rebalance_days: Optional[int] = REBALANCE_DAYS,
+) -> Tuple[np.ndarray, Dict]:
+    """
+    Build (n_samples, 3*K+1) return matrix for K underlyings.
+    spots: dict mapping each symbol to spot price on chain_date.
+    Each underlying's scenarios are generated independently; columns are
+    [eq1, call1, put1, eq2, call2, put2, ..., cash].
+    """
+    blocks = []
+    metas = {}
+    for sym in underlyings:
+        sp = spots.get(sym)
+        if sp is None:
+            raise ValueError(f"Missing spot for {sym} in spots")
+        R_one, meta_one = build_scenario_matrix(
+            chain_date=chain_date,
+            spot=float(sp),
+            n_samples=n_samples,
+            risk_free_rate=risk_free_rate,
+            rebalance_days=rebalance_days,
+            underlying=sym,
+        )
+        blocks.append(R_one[:, 0:3])
+        metas[sym] = meta_one
+    R_eq_call_put = np.hstack(blocks)
+    cash_col = R_one[:, 3:4]
+    R = np.hstack([R_eq_call_put, cash_col])
+    n_assets = 3 * len(underlyings) + 1
+    assert R.shape == (n_samples, n_assets), f"R shape {R.shape} vs expected (n_samples, {n_assets})"
+    meta = {"underlyings": underlyings, "per_underlying": metas, "n_scenarios": n_samples}
     return R, meta
 
 
