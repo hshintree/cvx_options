@@ -43,12 +43,19 @@ load_dotenv(_ROOT / ".env")
 _API_KEY = os.getenv("ALPACA_API_KEY")
 _SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 
-# Rate-limit: brief sleep between Alpaca API calls (ms)
+# Rate-limit: brief sleep between Alpaca API calls (seconds)
 _API_SLEEP = 0.25
 # Max option symbols per bars request (Alpaca cap)
 _BATCH_SIZE = 100
 # How far back historical option data is available
 OPTION_DATA_START = "2024-02-01"
+
+# Backfill defaults (wider coverage than the rebalance-date pipeline)
+_BACKFILL_MAX_DTE = 90
+_BACKFILL_STRIKE_PCT = 0.25
+_BACKFILL_STRIKE_STEP = 1.0
+SPY_EXPIRY_WEEKDAYS = (0, 2, 4)       # Mon / Wed / Fri
+DEFAULT_EXPIRY_WEEKDAYS = (0, 1, 2, 3, 4)  # try all weekdays
 
 
 # ---------------------------------------------------------------------------
@@ -428,6 +435,248 @@ def fetch_historical_chain(
 
 
 # ---------------------------------------------------------------------------
+# 4b.  Daily backfill: every trading day, all DTE, wide strikes
+# ---------------------------------------------------------------------------
+
+def _fetch_bars_batch_safe(
+    symbols: List[str],
+    bar_date: date,
+    sleep: float = _API_SLEEP,
+) -> pd.DataFrame:
+    """Like _fetch_bars_batch but with configurable sleep and 429 retry."""
+    from alpaca.data.requests import OptionBarsRequest
+    from alpaca.data.timeframe import TimeFrame
+
+    client = _get_option_client()
+    start_dt = datetime.combine(bar_date, datetime.min.time())
+    end_dt = datetime.combine(bar_date + timedelta(days=3), datetime.min.time())
+
+    frames = []
+    for i in range(0, len(symbols), _BATCH_SIZE):
+        batch = symbols[i : i + _BATCH_SIZE]
+        retries = 0
+        while retries < 4:
+            try:
+                request = OptionBarsRequest(
+                    symbol_or_symbols=batch,
+                    timeframe=TimeFrame.Day,
+                    start=start_dt,
+                    end=end_dt,
+                )
+                bars = client.get_option_bars(request)
+                df = bars.df
+                if len(df) > 0:
+                    if isinstance(df.index, pd.MultiIndex):
+                        df = df.reset_index()
+                        if "symbol" in df.columns:
+                            df = df.rename(columns={"symbol": "contract"})
+                    frames.append(df)
+                break
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "too many" in err_str.lower():
+                    wait = sleep * (2 ** retries) + 1.0
+                    logger.warning("Rate-limited (batch %d), retrying in %.1fs", i // _BATCH_SIZE, wait)
+                    time.sleep(wait)
+                    retries += 1
+                else:
+                    logger.warning("Bars batch %d failed: %s", i // _BATCH_SIZE, e)
+                    break
+        time.sleep(sleep)
+
+    if not frames:
+        return pd.DataFrame()
+    combined = pd.concat(frames, ignore_index=True)
+    if "timestamp" in combined.columns:
+        combined["timestamp"] = pd.to_datetime(combined["timestamp"])
+        combined = combined[combined["timestamp"].dt.date == bar_date]
+    return combined
+
+
+def _bars_to_chain_df(bars_df: pd.DataFrame) -> pd.DataFrame:
+    """Convert raw option bars into the chain DataFrame format."""
+    sym_col = "contract" if "contract" in bars_df.columns else "symbol"
+    if sym_col not in bars_df.columns:
+        return pd.DataFrame()
+
+    rows = []
+    for _, row in bars_df.iterrows():
+        parsed = parse_occ_symbol(row[sym_col])
+        close_price = row.get("close", 0.0)
+        open_price = row.get("open", 0.0)
+        rows.append({
+            "contractSymbol": row[sym_col],
+            "expiry": parsed["expiry"].isoformat(),
+            "strike": parsed["strike"],
+            "lastPrice": close_price,
+            "bid": 0.0,
+            "ask": 0.0,
+            "impliedVolatility": 0.0,
+            "is_call": parsed["is_call"],
+            "volume": row.get("volume", 0),
+        })
+    return pd.DataFrame(rows)
+
+
+def backfill_daily_chains(
+    symbol: str = "SPY",
+    start_date: str = OPTION_DATA_START,
+    end_date: str | None = None,
+    max_dte: int = _BACKFILL_MAX_DTE,
+    min_dte: int = 0,
+    strike_pct_range: float = _BACKFILL_STRIKE_PCT,
+    strike_step: float = _BACKFILL_STRIKE_STEP,
+    expiry_weekdays: tuple | None = None,
+    api_sleep: float = 0.35,
+    force: bool = False,
+) -> dict:
+    """
+    Fetch option chain bars for **every trading day** in [start_date, end_date].
+
+    This is the comprehensive backfill function — much wider coverage than the
+    rebalance-date pipeline:
+
+    - All DTE from *min_dte* to *max_dte* (default 0–90)
+    - Strikes from spot*(1 - strike_pct_range) to spot*(1 + strike_pct_range)
+    - All candidate expiry dates matching *expiry_weekdays*
+
+    Incremental: dates that already have both calls_*.parquet and puts_*.parquet
+    are skipped unless *force=True*.
+
+    Parameters
+    ----------
+    symbol : str
+        Underlying ticker (e.g. "SPY", "AAPL").
+    start_date, end_date : str
+        ISO date bounds.  end_date defaults to today.
+    max_dte, min_dte : int
+        Calendar-day DTE range for candidate expiries.
+    strike_pct_range : float
+        Fraction of spot for strike bounds (0.25 = ±25 %).
+    strike_step : float
+        Dollar increment between strikes.
+    expiry_weekdays : tuple[int,...] | None
+        Which weekdays are valid expiry dates (0=Mon … 4=Fri).
+        Defaults to M/W/F for SPY, all weekdays for others.
+    api_sleep : float
+        Seconds between API batches (increase if rate-limited).
+    force : bool
+        Re-fetch even if files exist.
+
+    Returns
+    -------
+    dict  with keys fetched, skipped, failed, total_calls, total_puts.
+    """
+    symbol = symbol.upper()
+    if expiry_weekdays is None:
+        expiry_weekdays = SPY_EXPIRY_WEEKDAYS if symbol == "SPY" else DEFAULT_EXPIRY_WEEKDAYS
+
+    # Load equity bars for spot prices and trading calendar
+    price_file = SPY_DAILY_FILE if symbol == "SPY" else RAW_DIR / f"{symbol.lower()}_daily.parquet"
+    if not price_file.exists():
+        raise FileNotFoundError(
+            f"No equity bars for {symbol}. Run fetch_stock_bars('{symbol}') first."
+        )
+    prices = pd.read_parquet(price_file)
+    if not isinstance(prices.index, pd.DatetimeIndex):
+        prices.index = pd.to_datetime(prices.index)
+
+    chain_dir = OPTION_CHAINS_DIR if symbol == "SPY" else OPTION_CHAINS_DIR / symbol
+    chain_dir.mkdir(parents=True, exist_ok=True)
+
+    start_ts = pd.Timestamp(start_date)
+    end_ts = pd.Timestamp(end_date) if end_date else pd.Timestamp.now().normalize()
+    trading_days = prices.index[(prices.index >= start_ts) & (prices.index <= end_ts)].sort_values()
+
+    # Detect already-fetched dates (both calls + puts must exist)
+    existing: set[pd.Timestamp] = set()
+    for p in chain_dir.glob("calls_*.parquet"):
+        ds = p.name.split("_", 1)[1].replace(".parquet", "")
+        try:
+            existing.add(pd.Timestamp(ds))
+        except Exception:
+            pass
+
+    to_fetch = [d for d in trading_days if force or d not in existing]
+    cached = len(set(trading_days) & existing)
+
+    logger.info(
+        "Backfill %s: %d trading days in [%s, %s], %d cached, %d to fetch",
+        symbol, len(trading_days), start_ts.date(), end_ts.date(), cached, len(to_fetch),
+    )
+
+    stats = {"fetched": 0, "skipped": 0, "failed": 0, "total_calls": 0, "total_puts": 0}
+    empty_cols = [
+        "contractSymbol", "expiry", "strike", "lastPrice",
+        "bid", "ask", "impliedVolatility", "volume",
+    ]
+
+    for i, day in enumerate(to_fetch):
+        if day not in prices.index:
+            stats["skipped"] += 1
+            continue
+
+        spot = float(prices.loc[day, "close"])
+        chain_date = day.date()
+
+        # Generate candidate expiry dates within DTE range
+        expiries = _candidate_expiries(chain_date, min_dte, max_dte)
+        # Widen: also include expiry_weekdays not covered by original M/W/F helper
+        all_expiries = []
+        for delta in range(min_dte, max_dte + 1):
+            d = chain_date + timedelta(days=delta)
+            if d.weekday() in expiry_weekdays:
+                all_expiries.append(d)
+        if not all_expiries:
+            stats["skipped"] += 1
+            continue
+
+        call_syms, put_syms = _generate_symbols(
+            all_expiries, spot, underlying=symbol,
+            pct_range=strike_pct_range, strike_step=strike_step,
+        )
+        all_syms = call_syms + put_syms
+
+        logger.info(
+            "[%d/%d] %s %s  spot=%.0f  %d expiries  %d symbols",
+            i + 1, len(to_fetch), symbol, chain_date,
+            spot, len(all_expiries), len(all_syms),
+        )
+
+        bars_df = _fetch_bars_batch_safe(all_syms, chain_date, sleep=api_sleep)
+
+        if bars_df.empty:
+            logger.warning("  No bars returned — saving empty chain files")
+            stats["failed"] += 1
+            pd.DataFrame(columns=empty_cols).to_parquet(
+                chain_dir / f"calls_{chain_date.isoformat()}.parquet", index=False,
+            )
+            pd.DataFrame(columns=empty_cols).to_parquet(
+                chain_dir / f"puts_{chain_date.isoformat()}.parquet", index=False,
+            )
+            continue
+
+        chain_df = _bars_to_chain_df(bars_df)
+        if chain_df.empty:
+            stats["failed"] += 1
+            continue
+
+        calls = chain_df[chain_df["is_call"]].drop(columns=["is_call"]).reset_index(drop=True)
+        puts = chain_df[~chain_df["is_call"]].drop(columns=["is_call"]).reset_index(drop=True)
+
+        calls.to_parquet(chain_dir / f"calls_{chain_date.isoformat()}.parquet", index=False)
+        puts.to_parquet(chain_dir / f"puts_{chain_date.isoformat()}.parquet", index=False)
+
+        stats["fetched"] += 1
+        stats["total_calls"] += len(calls)
+        stats["total_puts"] += len(puts)
+        logger.info("  Saved: %d calls, %d puts", len(calls), len(puts))
+
+    logger.info("Backfill complete: %s", stats)
+    return stats
+
+
+# ---------------------------------------------------------------------------
 # 5.  Compute rebalance dates from SPY calendar
 # ---------------------------------------------------------------------------
 
@@ -645,40 +894,75 @@ def run_full_pipeline(
 if __name__ == "__main__":
     import argparse
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
     parser = argparse.ArgumentParser(description="Fetch Alpaca data (SPY, AAPL, CRWD, etc.).")
-    parser.add_argument(
-        "--symbols",
-        nargs="+",
-        default=["SPY"],
-        help="Underlying symbols to fetch (e.g. SPY AAPL CRWD). Default: SPY.",
-    )
-    parser.add_argument("--start", default="2020-01-01", help="Start date for daily bars.")
-    parser.add_argument("--end", default=None, help="End date for daily bars (default: today).")
-    parser.add_argument(
-        "--no-historical",
-        action="store_true",
-        help="Skip historical option chain fetch; only bars + current chain.",
-    )
-    parser.add_argument(
-        "--period-days",
-        type=int,
-        default=TARGET_IDEAL_DTE,
-        help="Rebalance period in trading days for historical chains.",
-    )
+    sub = parser.add_subparsers(dest="cmd")
+
+    # --- legacy: rebalance-date pipeline ---
+    p_legacy = sub.add_parser("pipeline", help="Original rebalance-date pipeline")
+    p_legacy.add_argument("--symbols", nargs="+", default=["SPY"])
+    p_legacy.add_argument("--start", default="2020-01-01")
+    p_legacy.add_argument("--end", default=None)
+    p_legacy.add_argument("--no-historical", action="store_true")
+    p_legacy.add_argument("--period-days", type=int, default=TARGET_IDEAL_DTE)
+
+    # --- backfill: every trading day ---
+    p_bf = sub.add_parser("backfill", help="Backfill option chains for every trading day")
+    p_bf.add_argument("--symbols", nargs="+", default=["SPY"],
+                       help="Underlying symbols (e.g. SPY AAPL CRWD)")
+    p_bf.add_argument("--start", default=OPTION_DATA_START,
+                       help="First date to backfill (default: %(default)s)")
+    p_bf.add_argument("--end", default=None,
+                       help="Last date to backfill (default: today)")
+    p_bf.add_argument("--max-dte", type=int, default=_BACKFILL_MAX_DTE,
+                       help="Max DTE for expiry candidates (default: %(default)s)")
+    p_bf.add_argument("--strike-pct", type=float, default=_BACKFILL_STRIKE_PCT,
+                       help="Strike range as fraction of spot (default: %(default)s)")
+    p_bf.add_argument("--strike-step", type=float, default=_BACKFILL_STRIKE_STEP,
+                       help="Dollar step between strikes (default: %(default)s)")
+    p_bf.add_argument("--api-sleep", type=float, default=0.35,
+                       help="Seconds between API batches (default: %(default)s)")
+    p_bf.add_argument("--force", action="store_true",
+                       help="Re-fetch even if chain files already exist")
+    p_bf.add_argument("--fetch-bars-first", action="store_true",
+                       help="Fetch/update equity daily bars before backfilling chains")
+
     args = parser.parse_args()
 
-    symbols = [s.upper() for s in args.symbols]
-    if "SPY" in symbols:
-        run_full_pipeline(spy_start=args.start, spy_end=args.end, fetch_historical=not args.no_historical)
-        time.sleep(_API_SLEEP)
-    for sym in symbols:
-        if sym == "SPY":
-            continue
-        run_pipeline_for_symbol(
-            sym,
-            start=args.start,
-            end=args.end,
-            fetch_historical=not args.no_historical,
-            period_days=args.period_days,
-        )
-        time.sleep(_API_SLEEP)
+    if args.cmd == "backfill":
+        symbols = [s.upper() for s in args.symbols]
+        for sym in symbols:
+            if args.fetch_bars_first:
+                logger.info("Fetching equity bars for %s ...", sym)
+                fetch_stock_bars(sym, start="2020-01-01", end=args.end, save=True)
+            backfill_daily_chains(
+                symbol=sym,
+                start_date=args.start,
+                end_date=args.end,
+                max_dte=args.max_dte,
+                strike_pct_range=args.strike_pct,
+                strike_step=args.strike_step,
+                api_sleep=args.api_sleep,
+                force=args.force,
+            )
+    else:
+        # Default: legacy pipeline
+        symbols = [s.upper() for s in (args.symbols if args.cmd else ["SPY"])]
+        if "SPY" in symbols:
+            run_full_pipeline(
+                spy_start=getattr(args, "start", "2020-01-01"),
+                spy_end=getattr(args, "end", None),
+                fetch_historical=not getattr(args, "no_historical", False),
+            )
+            time.sleep(_API_SLEEP)
+        for sym in symbols:
+            if sym == "SPY":
+                continue
+            run_pipeline_for_symbol(
+                sym,
+                start=getattr(args, "start", "2020-01-01"),
+                end=getattr(args, "end", None),
+                fetch_historical=not getattr(args, "no_historical", False),
+                period_days=getattr(args, "period_days", TARGET_IDEAL_DTE),
+            )
+            time.sleep(_API_SLEEP)
