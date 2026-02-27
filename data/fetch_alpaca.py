@@ -16,7 +16,7 @@ import sys
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -234,6 +234,7 @@ def fetch_current_chain(
         iv = snap.implied_volatility or 0.0
         delta = snap.greeks.delta if snap.greeks else None
         gamma = snap.greeks.gamma if snap.greeks else None
+        rho = snap.greeks.rho if snap.greeks else None
         theta = snap.greeks.theta if snap.greeks else None
         vega = snap.greeks.vega if snap.greeks else None
 
@@ -248,8 +249,10 @@ def fetch_current_chain(
             "is_call": parsed["is_call"],
             "delta": delta,
             "gamma": gamma,
+            "rho": rho,
             "theta": theta,
             "vega": vega,
+            "data_source": "alpaca_snapshot",
         })
 
     df = pd.DataFrame(rows)
@@ -267,6 +270,58 @@ def fetch_current_chain(
             underlying_symbol, date_str, len(calls), len(puts),
         )
     return calls, puts
+
+
+def fetch_latest_snapshots_for_symbols(
+    option_symbols: Iterable[str],
+    *,
+    save_path: Path | None = None,
+) -> pd.DataFrame:
+    """
+    Fetch latest option snapshots for a concrete list of contract symbols.
+
+    This is the cleanest forward-looking path for building a research-quality
+    dataset with actual bid/ask, implied volatility, and greeks for the same
+    contracts over time. Alpaca's historical bars do not include these fields.
+    """
+    from alpaca.data.requests import OptionSnapshotRequest
+
+    symbols = [sym for sym in dict.fromkeys(option_symbols) if sym]
+    if not symbols:
+        return pd.DataFrame()
+
+    client = _get_option_client()
+    request = OptionSnapshotRequest(symbol_or_symbols=symbols)
+    snaps = client.get_option_snapshot(request)
+
+    rows = []
+    for sym, snap in snaps.items():
+        if snap is None:
+            continue
+        bid = snap.latest_quote.bid_price if snap.latest_quote else 0.0
+        ask = snap.latest_quote.ask_price if snap.latest_quote else 0.0
+        last_price = snap.latest_trade.price if snap.latest_trade else 0.0
+        rows.append({
+            "contractSymbol": sym,
+            "lastPrice": last_price,
+            "bid": bid,
+            "ask": ask,
+            "impliedVolatility": snap.implied_volatility,
+            "delta": snap.greeks.delta if snap.greeks else None,
+            "gamma": snap.greeks.gamma if snap.greeks else None,
+            "rho": snap.greeks.rho if snap.greeks else None,
+            "theta": snap.greeks.theta if snap.greeks else None,
+            "vega": snap.greeks.vega if snap.greeks else None,
+            "data_source": "alpaca_symbol_snapshot",
+            "snapshot_ts": pd.Timestamp.utcnow(),
+        })
+
+    df = pd.DataFrame(rows)
+    if save_path is not None and not df.empty:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(save_path, index=False)
+        logger.info("Saved %d symbol snapshots → %s", len(df), save_path)
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -410,9 +465,18 @@ def fetch_historical_chain(
             "lastPrice": close_price,
             "bid": 0.0,
             "ask": 0.0,
-            "impliedVolatility": 0.0,  # will be derived via BS inversion
+            # Historical bars do not include snapshot greeks or IV.
+            # We keep explicit null fields so downstream cleaning can distinguish
+            # "missing from source" from "forgot to populate".
+            "impliedVolatility": None,
             "is_call": parsed["is_call"],
             "volume": row.get("volume", 0),
+            "delta": None,
+            "gamma": None,
+            "rho": None,
+            "theta": None,
+            "vega": None,
+            "data_source": "alpaca_bar",
         })
 
     chain_df = pd.DataFrame(rows)
@@ -511,9 +575,15 @@ def _bars_to_chain_df(bars_df: pd.DataFrame) -> pd.DataFrame:
             "lastPrice": close_price,
             "bid": 0.0,
             "ask": 0.0,
-            "impliedVolatility": 0.0,
+            "impliedVolatility": None,
             "is_call": parsed["is_call"],
             "volume": row.get("volume", 0),
+            "delta": None,
+            "gamma": None,
+            "rho": None,
+            "theta": None,
+            "vega": None,
+            "data_source": "alpaca_bar",
         })
     return pd.DataFrame(rows)
 
@@ -609,6 +679,7 @@ def backfill_daily_chains(
     empty_cols = [
         "contractSymbol", "expiry", "strike", "lastPrice",
         "bid", "ask", "impliedVolatility", "volume",
+        "delta", "gamma", "rho", "theta", "vega", "data_source",
     ]
 
     for i, day in enumerate(to_fetch):

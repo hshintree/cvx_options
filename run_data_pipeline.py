@@ -24,6 +24,7 @@ _ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(_ROOT))
 
 from config import DEFAULT_START_DATE, DEFAULT_END_DATE, TARGET_IDEAL_DTE
+from data.universes import UNIVERSE_BUILDERS, get_named_universe
 
 
 def main():
@@ -49,6 +50,22 @@ def main():
                        help="Seconds between API batches (default: %(default)s)")
     p_bf.add_argument("--force", action="store_true",
                        help="Re-fetch even if chain files already exist")
+
+    # --- snapshot subcommand ---
+    p_snap = sub.add_parser(
+        "snapshot",
+        help="Capture today's live option chain snapshot (quotes + IV + greeks)",
+    )
+    p_snap.add_argument("--symbols", nargs="+", default=["SPY"],
+                        help="Underlying symbols (default: SPY)")
+    p_snap.add_argument("--universe", choices=sorted(UNIVERSE_BUILDERS),
+                        help="Named fixed universe to snapshot instead of --symbols")
+    p_snap.add_argument("--dte-min", type=int, default=None,
+                        help="Min DTE for chain snapshot (default: config TARGET_MIN_DTE)")
+    p_snap.add_argument("--dte-max", type=int, default=None,
+                        help="Max DTE for chain snapshot (default: config TARGET_MAX_DTE)")
+    p_snap.add_argument("--refresh-bars", action="store_true",
+                        help="Refresh daily stock bars before snapshot capture (off by default for intraday runs)")
 
     # --- legacy flags (no subcommand) ---
     parser.add_argument("--spy-only", action="store_true",
@@ -85,6 +102,25 @@ def main():
                 strike_step=args.strike_step,
                 api_sleep=args.api_sleep,
                 force=args.force,
+            )
+        return
+
+    if args.cmd == "snapshot":
+        from data.fetch_alpaca import fetch_current_chain, fetch_stock_bars
+
+        symbols = get_named_universe(args.universe) if args.universe else [s.upper() for s in args.symbols]
+        dte_min = args.dte_min if args.dte_min is not None else None
+        dte_max = args.dte_max if args.dte_max is not None else None
+
+        for sym in symbols:
+            if args.refresh_bars:
+                logging.info("Refreshing equity bars for %s before snapshot capture ...", sym)
+                fetch_stock_bars(sym, start="2020-01-01", end=None, save=True)
+            fetch_current_chain(
+                underlying_symbol=sym,
+                dte_min=dte_min if dte_min is not None else TARGET_IDEAL_DTE // 2,
+                dte_max=dte_max if dte_max is not None else TARGET_IDEAL_DTE * 2,
+                save=True,
             )
         return
 
