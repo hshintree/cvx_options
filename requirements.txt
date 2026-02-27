@@ -4,14 +4,19 @@ cvxpy>=1.4.0
 pandas>=1.4.0
 numpy>=1.20.0
 
-# Data
-yfinance>=0.2.0
+# Data source
+alpaca-py>=0.30.0
+python-dotenv>=1.0.0
 
 # Risk-neutral density / fitting
 scipy>=1.9.0
 
-# PyArrow for parquet (often installed with pandas; explicit for robustness)
+# Parquet I/O
 pyarrow>=10.0.0
 
-# Optional: Alpaca if you switch data source
-# alpaca-py>=0.20.0
+# Plotting
+matplotlib>=3.5.0
+
+# Notebooks
+jupyter>=1.0.0
+ipykernel>=6.0.0

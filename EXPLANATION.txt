@@ -1,317 +1,330 @@
 ================================================================================
-  CVX_OPTIONS: CURRENT STATE EXPLANATION
-  Last updated: 2026-02-18
+  CVX_OPTIONS: TWO-OPTIMIZER ARCHITECTURE
+  Last updated: 2026-02-22
 ================================================================================
 
+This project implements two portfolio optimizers for an equity + options + cash
+portfolio. Both share the same data pipeline, forecasting engine, and option
+pricing mechanics; they differ in how risk is measured and how allocation
+decisions are made.
 
-================================================================================
-1. DISTRIBUTIONS USED FOR MU AND SIGMA
-================================================================================
-
-There are TWO separate forecast systems in the codebase, and the backtest
-actually uses a hybrid of both.  This is important to understand clearly.
-
-
-A) RND Forecasts (data/forecasts.py → compute_rnd_forecasts)
--------------------------------------------------------------
-
-PURPOSE: Extract expected returns and covariance from the current option chain.
-
-DISTRIBUTION FOR S_T (underlying price at expiry):
-
-  Attempt 1: Breeden-Litzenberger (BL) risk-neutral density
-    - Takes the filtered call option prices C(K) as a function of strike K
-    - Smooths with a cubic spline (UnivariateSpline, s=len(K))
-    - Enforces monotone non-increasing C(K) (no-arb)
-    - Computes second derivative: q(K) = exp(r*T) * d²C/dK²
-    - This gives the risk-neutral PDF of S_T
-    - Samples S_T via inverse-CDF from this discrete density (10,000 draws)
-
-  IN PRACTICE: BL is currently ALWAYS REJECTED because:
-    - yfinance lastPrice data is too noisy (stale, asynchronous)
-    - mean(S_T) from BL is 611.8 vs spot 682.8 (10.4% off)
-    - Sanity check tolerance is max(3%, min(15%, 40%*sqrt(T))) = 6.3%
-    - So the code falls back to...
-
-  Actual distribution used: LOGNORMAL with implied volatility
-    - S_T = S_0 * exp((r - σ²/2)*T + σ*sqrt(T)*Z), where Z ~ N(0,1)
-    - σ = ATM implied volatility from BS inversion = 0.1918 (19.2% annualized)
-    - r = 0.05 (5% risk-free rate)
-    - T = DTE/365 = 9/365 = 0.0247 years
-    - 10,000 Monte Carlo draws
-
-HOW MU IS COMPUTED (RND):
-  - For each Monte Carlo draw of S_T:
-      r_spy  = S_T / S_0 - 1
-      r_call = max(S_T - K, 0) / C_0 - 1    (terminal payoff / premium - 1)
-      r_put  = max(K - S_T, 0) / P_0 - 1     (terminal payoff / premium - 1)
-      r_cash = exp(r * T) - 1
-  - mu = sample mean across 10,000 draws
-  - Then clipped to [-10%, +10%] for SPY, [-30%, +30%] for options
-
-HOW SIGMA IS COMPUTED (RND):
-  - Sigma = sample covariance of the 10,000 return vectors [r_spy, r_call, r_put, r_cash]
-  - Then option volatilities are RESCALED to exactly 2x SPY vol:
-      scale = (2 * std_spy) / std_option
-      Sigma[:, option_col] *= scale
-      Sigma[option_col, :] *= scale
-  - This artificial rescaling means the RND Sigma does NOT reflect the true
-    variance of hold-to-expiry option returns (which is much higher)
-
-WHY SPY MU IS NEAR ZERO IN THE RND:
-  The lognormal uses RISK-NEUTRAL drift r = 5%.  Per period:
-    E[r_spy] = exp(r*T) - 1 = exp(0.05 * 9/365) - 1 = 0.0012 (0.12%)
-  This is essentially the risk-free rate.  Under risk-neutral pricing,
-  E[r_spy] ≈ r_cash by construction.  There is NO equity risk premium
-  in a risk-neutral distribution.  This is mathematically correct but
-  economically wrong for a real-world portfolio — SPY historically
-  earns ~8-10% annually above this.
-
-
-B) Backtest Forecasts (backtest.py → rolling historical)
----------------------------------------------------------
-
-The backtest does NOT use the RND mu or Sigma directly (except for the
-first 8 periods as a cold-start fallback).
-
-MU IN THE BACKTEST:
-  - Rolling mean of the past 26 periods of REALIZED synthetic returns
-  - Then shrunk 50% toward the cash rate:
-      mu_t = 0.5 * rolling_mean + 0.5 * r_cash
-  - This is the "physical measure" estimate — it captures the actual
-    equity risk premium from historical data
-
-SIGMA IN THE BACKTEST:
-  - Rolling sample covariance of the past 26 periods of REALIZED returns
-  - Falls back to the RND Sigma if the rolling covariance is degenerate
-  - This properly captures the extreme variance of binary option payoffs
-
-IS THE ROLLING CORRECT?
-  Yes.  At each period t, the code computes:
-    hist_slice = returns.iloc[max(0, t-26) : t]    # PAST returns only
-    mu_roll = hist_slice.mean()
-    Sigma_hist = hist_slice.cov()
-  It strictly uses returns from periods [t-26, t-1], never peeking at
-  period t or beyond.  No look-ahead bias in the rolling window.
-
-  However, there IS a subtlety: the synthetic returns themselves use a
-  FIXED implied volatility (19.2%) for BS pricing across all 71 periods
-  (4 years).  In reality, IV varies over time.  The SPY returns are real,
-  but the option return magnitudes are distorted by the constant-IV
-  assumption.
+  Optimizer          Risk metric       Problem type    Key advantage
+  ─────────────────  ────────────────  ──────────────  ──────────────────────
+  Markowitz++        Variance (Σ)      QCQP (SOCP)    Familiar, fast, vol cap
+  Scenario CVaR      CVaR from MC      LP (R-U)        Tail-aware, no Σ needed
 
 
 ================================================================================
-2. DATA INVENTORY
+1. SHARED FORECASTING ENGINE
 ================================================================================
 
-A) SPY Daily Prices
+Both optimizers are driven by the same chain of data → forecasts → scenarios.
+The distinction is what each optimizer *consumes* from that chain.
+
+
+A) Option Chain Loading and Filtering
+--------------------------------------
+1. Load calls_{date}.parquet and puts_{date}.parquet from option_chains/.
+2. Apply strict filters: min_mid ≥ $0.10, max bid-ask spread ≤ 35%.
+3. If fewer than MIN_BL_STRIKES (25) survive, relax: min_mid ≥ $0.02,
+   spread ≤ 80%.
+4. Select the expiry with the best DTE/strike coverage (target 35–75 DTE).
+
+Q: Do we need more strikes?
+   BL density needs ≥ 25 clean OTM strikes spanning ±10% of spot for the
+   IV spline to produce a well-conditioned second derivative. With Alpaca
+   data we typically get 30–50 after filtering, which is adequate. If you
+   add very illiquid names or far-dated expiries with wide spreads, the
+   relaxed filters kick in. The system is self-healing: if BL fails, the
+   lognormal fallback uses only ATM IV (1 strike is enough). More strikes
+   improve the tails of the BL density but don't change the ATM region much.
+
+
+B) Breeden-Litzenberger (BL) Risk-Neutral Density
+---------------------------------------------------
+1. Extract OTM implied vols: calls for K > spot, puts for K < spot.
+2. Fit a 4th-degree smoothing spline σ(K) weighted toward ATM.
+3. Evaluate smooth BS call prices C(K) on a 500-point grid.
+4. Compute q(K) = e^{rT} · d²C/dK² — the risk-neutral PDF of S_T.
+5. Validate: mean(S_T) within tolerance of spot; strikes span spot; density
+   not degenerate (>20% non-zero mass).
+6. If BL passes: sample S_T via inverse-CDF.
+7. If BL fails: use lognormal with ATM IV (extracted via Newton-Raphson BS
+   inversion from nearest ATM mid-price).
+
+Fallback rate with Alpaca data: ~30–60% BL success (vs. ~0% with yfinance).
+
+
+C) Physical-Measure Scenario Generation
+-----------------------------------------
+BL gives a risk-neutral (Q) density. For portfolio optimization we need the
+physical (P) density — which includes the equity risk premium.
+
+1. Estimate physical drift: μ_p = r + equity_premium.
+   - If EQUITY_PREMIUM_ANNUAL is set: use that constant.
+   - Else: estimate from rolling 252-day log-return mean (floor: r + 2%).
+2. Tilt BL samples from Q → P via Esscher transform:
+     weights_i = exp(θ · log(S_i/spot)), θ = (μ_p - r) / σ²_atm.
+   Or, if BL failed: sample from LogNormal(μ_p, σ_atm) directly.
+3. Result: n_samples draws of S_{rebalance} under physical measure.
+
+
+D) Option Returns (Horizon Repricing with Dynamic IV)
+------------------------------------------------------
+For each scenario draw S_next:
+
+  Equity:     r_eq = S_next / spot - 1
+
+  Call:       C₁ = BS_Call(S_next, K_atm, r, T_remain, σ_call(S_next))
+              r_call = C₁ / C₀ - 1
+
+  Put spread: Long ATM put at K_atm, short OTM put at K_lower.
+              P₁_long  = BS_Put(S_next, K_atm, r, T_remain, σ_put(S_next))
+              P₁_short = BS_Put(S_next, K_lower, r, T_remain, σ_put(S_next))
+              r_put_spread = (P₁_long - P₁_short) / spread_entry - 1
+
+  Cash:       r_cash = e^{r·T_rebal} - 1
+
+Dynamic IV (skew model):
+  When S_next < spot, IV gets a volatility bump proportional to the down move:
+    down = max(0, (spot - S_next) / spot)
+    excess = max(0, down - SKEW_THRESHOLD)
+    σ_call(S) = σ_call_0 + 0.25 · SKEW_BETA · excess
+    σ_put(S)  = σ_put_0  + SKEW_BETA · excess
+
+  SKEW_BETA = 2.5 means a 5% drop adds +0.10 to put IV. This captures the
+  empirical leverage effect and makes put protection more expensive exactly
+  when you need it (no free lunch). Default SKEW_THRESHOLD = 0.01 ignores
+  the first 1% of any move.
+
+Entry prices use ask (buy) side; exit prices subtract half the bid-ask spread.
+
+Result: R ∈ ℝ^{N×4} for single-asset [eq, call, put_spread, cash],
+        or ℝ^{N×(3K+1)} for K underlyings.
+
+
+================================================================================
+2. MARKOWITZ++ OPTIMIZER
+================================================================================
+
+Problem formulation
 --------------------
-  Source:       yfinance ("SPY")
-  File:         data/raw/spy_daily.parquet
-  Rows:         2,797 trading days
-  Date range:   2015-01-02 to 2026-02-17
-  Columns:      open, high, low, close, volume
-  Price range:  $154.98 to $695.49
-
-  Used in backtest: last 4 years (lookback_years=4.0)
-    → ~1,000 daily closes
-    → 71 non-overlapping 14-day periods (2022-03-10 to 2026-02-05)
-
-B) Cash Rate (Risk-Free)
---------------------------
-  Source:       yfinance ("^IRX", 13-week T-bill)
-  File:         data/raw/cash_rate_daily.parquet
-  Rows:         2,796
-  Columns:      rate, return
-  Rate range:   -0.1050% to 5.3480% annualized
-  Used as:      fixed r = 5% annual (hardcoded, not from this file)
-
-C) Option Chain Snapshot
--------------------------
-  Source:       yfinance (SPY options chain)
-  File:         data/raw/option_chains/calls_2026-02-18.parquet
-                data/raw/option_chains/puts_2026-02-18.parquet
-  Snapshot:     SINGLE DATE ONLY (2026-02-18)
-  Calls:        4,728 contracts across 33 expiries (2026-02-18 to 2028-12-15)
-  Puts:         4,385 contracts across 33 expiries
-  Strike range: $50 to $1,360
-
-  DATA QUALITY:
-    Bid > 0:                451 / 4,728 calls (9.5%)   ← most contracts have bid=0
-    lastPrice > 0:        4,728 / 4,728 calls (100%)   ← all have stale lastPrice
-    Valid IV (0.01-3.0):  2,320 / 4,728 calls (49.1%)  ← half have garbage IV
-
-  AFTER FILTERING (chosen expiry 2026-02-27, DTE=9):
-    Calls:   160 contracts (strikes 420..716)
-    Puts:    187 contracts
-    These are filtered by: mid >= $0.05, spread <= 50% (only on rows with bid>0)
-
-D) Implied Volatility
------------------------
-  Chain IV from yfinance:  mostly garbage (median 0.008, min 0.00001)
-  ATM IV actually used:    0.1918 (19.2% annualized)
-    → derived via Newton-Raphson BS inversion from the ATM lastPrice ($8.55)
-    → NOT from the chain's impliedVolatility column
-
-E) Realized Volatility
-------------------------
-  Not explicitly computed.  The rolling-26 standard deviation of SPY
-  14-day returns serves as a proxy:
-    Range:  2.6% to 5.0% per period (annualized: ~11% to ~21%)
-    Last:   3.6% per period (annualized: ~15%)
-
-F) Option Return Statistics (synthetic, hold-to-expiry)
----------------------------------------------------------
-    Asset         Mean     Std      Min      Max
-    SPY          +0.78%    4.0%   -10.6%    +9.0%
-    SPY_CALL    +25.7%   136.5%  -100.0%  +467.9%   ← extreme binary payoff
-    SPY_PUT     -13.0%   181.8%  -100.0%  +666.0%   ← extreme binary payoff
-    USDOLLAR     +0.19%    0.0%    +0.19%   +0.19%
-
-  Total loss (return = -100%) frequency:
-    Calls: 22 / 71 periods (31%)  — SPY fell, call expired worthless
-    Puts:  49 / 71 periods (69%)  — SPY rose, put expired worthless
-
-
-================================================================================
-3. HYPERPARAMETERS AND VOLATILITY ANALYSIS
-================================================================================
-
-A) Current Hyperparameters
----------------------------
-
-  Backtest (backtest.py):
-    REBAL_DAYS         = 14      # trading days per period (from TARGET_IDEAL_DTE)
-    GAMMA              = 5.0     # risk-aversion in objective
-    MAX_TURNOVER       = 0.50    # max sum of |w_new - w_old| per period
-    TCOST_RATE         = 0.001   # 10 bps each way
-    LOOKBACK_YEARS     = 4.0     # synthetic return history
-    ROLLING_WINDOW     = 26      # ~1 year of periods for rolling mu/Sigma
-    MIN_PERIODS_FOR_ROLL = 8     # cold-start: use RND until 8 periods
-    MAX_OPTION_WEIGHT  = 0.15    # max 15% in any single option sleeve
-    MIN_CASH_WEIGHT    = 0.10    # always keep 10% in cash
-    MU_SHRINKAGE       = 0.50    # blend rolling mu 50/50 with cash rate
-
-  Forecasts (config.py):
-    REBALANCE_DAYS     = None    # hold to expiry
-    TARGET_MIN_DTE     = 7       # minimum days to expiry
-    TARGET_MAX_DTE     = 21      # maximum days to expiry
-    TARGET_IDEAL_DTE   = 14      # preferred DTE
-    MIN_OPTION_MID     = 0.05    # quote floor
-    MAX_BID_ASK_SPREAD = 0.50    # spread filter
-    MIN_BL_STRIKES     = 10      # minimum for BL density
-    WINSORIZE          = (1%, 99%) # tail trimming on MC returns
-    MU_CLIP_SPY        = (-10%, +10%)
-    MU_CLIP_OPTION     = (-30%, +30%)
-    option_vol_mult    = 2.0     # rescale option vol to 2x SPY vol in RND Sigma
-
-B) Why Portfolio Volatility Is So High
-----------------------------------------
-
-The -70% max drawdown and wild portfolio swings come from ONE root cause:
-hold-to-expiry ATM options have BINARY payoffs.
-
-  If SPY goes up:  call return ≈ +100% to +400%, put return = -100%
-  If SPY goes down: call return = -100%, put return ≈ +100% to +600%
-
-Even with the 15% cap, holding 15% in calls means:
-  - Bad period: 15% * (-100%) = -15% portfolio hit in ONE period
-  - This happened in 22 out of 71 periods (31% of the time)
-  - Several consecutive bad periods compound: (0.85)^3 = 0.61, a 39% loss
-
-The options are NOT providing volatility smoothing in the current setup.
-They are acting as leveraged directional bets with binary outcomes.
-This is the opposite of what you want for vol-smoothing.
-
-WHY OPTIONS AREN'T SMOOTHING VOLATILITY:
-  1. Hold-to-expiry means the option either pays off or is worthless.
-     There's no "time value cushion" to soften the blow.
-  2. The optimizer sees positive rolling mu for calls during bull markets
-     (because the mean of {-100%, +200%, +300%} is positive) and allocates
-     15%.  But the std is 137%, not the 5% the optimizer expects from the
-     rolling Sigma (which is biased by the asymmetric distribution).
-  3. Mean-variance optimization with binary payoffs is fundamentally
-     mismatched — the return distribution is nowhere near normal.
-
-C) How Soft Is the Volatility Constraint?
--------------------------------------------
-
-There is NO explicit volatility constraint.
-
-The optimization problem is:
-
-  maximize  mu' * w  -  (gamma/2) * w' * Sigma * w  -  tcost * turnover
+  maximize    μ_wc' w  -  (γ/2) · w' Σ_wc w  -  τ · ‖w - w_prev‖₁
 
   subject to:
-    w >= 0                          (long-only)
-    w <= [1.0, 0.15, 0.15, 1.0]    (option weight caps)
-    sum(w) = 1                      (fully invested)
-    w_cash >= 0.10                  (minimum cash)
-    |w - w_prev|_1 <= 0.50          (turnover cap)
+    w ≥ 0                                    (long-only)
+    w ≤ w_upper                              (per-asset caps)
+    Σ w = 1                                  (fully invested)
+    w_cash ≥ min_cash                        (cash floor)
+    ‖w - w_prev‖₁ ≤ max_turnover            (turnover cap)
+    ‖L' w‖₂ ≤ max_port_vol                  (hard portfolio vol cap, SOCP)
+    w_call_i + w_put_i ≤ max_option_weight   (per-sleeve option cap)
 
-The ONLY thing limiting portfolio volatility is:
-  - The gamma * w'Sigma*w penalty in the objective (SOFT penalty, not a hard cap)
-  - The 15% option weight cap (HARD constraint)
-  - The 10% minimum cash (HARD constraint)
+Where:
+  μ_wc = μ − ρ         worst-case return (DeMiguel et al.)
+  Σ_wc = Σ + κ·diag(Σ) worst-case covariance
+  L     = cholesky(Σ_wc + εI)
 
-With gamma = 5 and a rolling Sigma that has option variance ~1.9 (std 137%):
-  The gamma penalty for 15% in calls = 5/2 * 0.15^2 * 1.9 = 0.021
-  The expected return term for 15% in calls = 0.15 * 0.10 = 0.015
-
-So the penalty roughly balances the reward, but the optimizer STILL allocates
-to calls whenever rolling mu is positive enough.
-
-WHAT'S MISSING for volatility smoothing:
-  - A hard portfolio volatility TARGET: sqrt(w'Sigma*w) <= target_vol
-    (e.g., target_vol = 0.05 for ~5% per-period portfolio std)
-  - Or a TRACKING ERROR constraint against SPY
-  - Or HORIZON REPRICING instead of hold-to-expiry: options that are
-    sold before expiry retain time value, so a 3% SPY drop might only
-    cause a 40% call loss instead of 100%.  This dramatically reduces
-    the binary-ness and makes mean-variance more appropriate.
-  - Or use options for HEDGING (long put as insurance) rather than as
-    a return-seeking allocation.
+Default parameters:
+  γ = 5.0       risk aversion
+  ρ = 0.01      return uncertainty per asset (cash = 0)
+  κ = 0.10      covariance diagonal boost
+  max_port_vol = 0.12  per-period portfolio std cap
 
 
-================================================================================
-4. SUMMARY OF KEY ISSUES
-================================================================================
+How Markowitz builds μ and Σ
+------------------------------
+μ (expected returns):
+  - Rolling mean of past ROLLING_WINDOW (26) periods of realized returns.
+  - Shrunk 50% toward the risk-free rate: μ_t = 0.5·μ_roll + 0.5·r_cash.
+  - Cold-start (< 8 periods): μ = [0.005, 0, 0, r_cash].
 
-  ISSUE                              STATUS              IMPACT
-  ─────────────────────────────────  ──────────────────  ────────────────────────
-  Only 1 chain snapshot              Known limitation    No dynamic IV/chain data
-  BL always rejected (noisy data)    Expected            Lognormal fallback works
-  Constant IV for all 71 periods     Known limitation    Option returns are approx
-  Options have binary payoffs        Root cause of vol   -70% max DD
-  No hard vol constraint             Missing feature     Portfolio vol uncapped
-  Hold-to-expiry kills time value    Design choice       Max possible option loss
-  SPY mu ≈ 0 in RND (risk-neutral)  By construction     Rolling mu fixes this
+Σ (covariance):
+  - **RND component**: sample covariance of horizon-repriced Monte Carlo returns
+    from the option chain (held-contract semantics, sticky-strike IV).
+  - **IEWMA component**: CM-IEWMA predictor (3 half-life pairs) updated with
+    realized returns each period.
+  - **Dynamic blend (CM-IEWMA)**:
+      * Per-period weight `a_rnd_t ∈ [0, 1]` depends on BL quality and IEWMA
+        expert-entropy (confidence).
+      * Σ_t = (1 - a_rnd_t)·Σ_iewma_cm + a_rnd_t·Σ_rnd.
+
+This gives Markowitz a forward-looking (option-implied) Σ blended with a
+distributionally-robust historical Σ (CM-IEWMA), instead of a fixed blend.
 
 
 ================================================================================
-5. RECOMMENDED NEXT STEPS (for volatility smoothing)
+3. SCENARIO CVaR OPTIMIZER
 ================================================================================
 
-  1. Switch from hold-to-expiry to HORIZON REPRICING
-     Set REBALANCE_DAYS = 7 (or some fraction of DTE).  Options are
-     repriced via BS at the rebalance date instead of expiring.
-     This preserves time value and turns binary payoffs into
-     continuous ones.  A 3% SPY drop becomes a ~40% call loss
-     instead of -100%.
+Problem formulation
+--------------------
+The scenario optimizer now targets **relative tail risk vs a benchmark**, with an
+additional absolute CVaR term to avoid pathological “short-vol” portfolios:
 
-  2. Add a hard portfolio volatility constraint
-     sqrt(w' * Sigma * w) <= target_vol
-     This is a second-order cone constraint, directly supported by
-     cvxpy.  Target something like 3-5% per-period std.
+  - Benchmark:
+      * Single-asset: SPY equity column.
+      * Multi-asset  (3K+1): equal-weight of all equity sleeves.
+  - Relative return per scenario:  `rel_rets = port_rets - bench`.
+  - Losses:
+      * Relative:  `loss_rel = -rel_rets`.
+      * Absolute:  `loss_abs = -port_rets`.
 
-  3. Use puts for HEDGING, not as a return-seeking asset
-     Instead of "allocate to puts when rolling mu is positive,"
-     always hold a small put position as tail insurance.
-     This is the classic "protective put" overlay.
+Objective:
+  maximize    μ_phys' w
+             - λ_rel · CVaR_α(loss_rel)
+             - λ_abs · CVaR_α(loss_abs)
+             - τ · ‖w - w_prev‖₁
+             - ε·‖w‖²
 
-  4. Get richer data (Alpaca, ThetaData, etc.)
-     Multiple chain snapshots over time would allow:
-     - Time-varying IV for realistic option pricing
-     - True historical option returns (not synthetic)
-     - BL density extraction from clean bid/ask quotes
+subject to:
+  - w ≥ 0                                    (long-only)
+  - w ≤ w_upper                              (per-asset caps)
+  - Σ w = 1                                  (fully invested)
+  - w_cash ≥ min_cash                        (cash floor)
+  - ‖w - w_prev‖₁ ≤ max_turnover            (turnover cap)
+  - w_call_i + w_put_i ≤ max_option_weight   (per-sleeve option cap)
+  - **Tracking constraint**:
+        mean(rel_rets) ≥ track_eps
+    which caps long-run benchmark underperformance from hedging drag.
+
+CVaR is linearized via Rockafellar–Uryasev separately for relative and absolute loss:
+  CVaR_α(loss) = min_t [ t + (1 / N(1-α)) · Σᵢ max(lossᵢ - t, 0) ]
+
+  Auxiliary variables: t ∈ ℝ (VaR threshold), uᵢ ≥ 0 (excess losses).
+  Constraints:   uᵢ ≥ lossᵢ - t,  uᵢ ≥ 0
+  CVaR =         t + Σuᵢ / (N(1-α))
+
+This remains a linear program: fast and exact, but now explicitly controls
+**relative** and **absolute** tail risk, and enforces a soft tracking floor.
+
+Default parameters:
+  α = 0.95              tail probability (worst 5%)
+  λ_rel = 0.05          CVaR penalty on relative loss (port − bench)
+  λ_abs = 0.30          CVaR penalty on absolute loss (−port)
+  track_eps ≈ −0.0005   per-period tracking floor (small underperformance allowed)
+  ε = 1e-4              quadratic regularization for stability
+
+
+How Scenario CVaR builds its inputs
+-------------------------------------
+μ_phys (expected returns under P):
+  - Equity: mean of equity column in scenario matrix (physical drift).
+  - Options: set to 0 (fairly priced under Q; CVaR + tracking constraint drive allocation).
+  - Cash: exp(r · T_rebal) - 1.
+
+R (scenario matrix):
+  - Shape: (N, 4) for single-asset or (N, 3K+1) for K underlyings.
+  - Each row is one Monte Carlo path of [r_eq, r_call, r_put_spread, r_cash].
+  - Generated by the shared forecasting engine (section 1D above).
+
+The key insight: the scenario optimizer never collapses information to (μ, Σ).
+It sees the full joint distribution of returns — including skewness, kurtosis,
+and tail dependence — which is critical for options.
+
+
+================================================================================
+4. DYNAMIC HEDGE SIZING
+================================================================================
+
+Both optimizers use the same dynamic hedge sizing system to determine how much
+put protection to buy each period. This replaces the old binary "tactical puts"
+on/off switch with a continuous signal.
+
+Three signals are combined:
+
+  Signal         Weight   Inputs                  Interpretation
+  ─────────────  ──────   ──────────────────────  ──────────────────────
+  Tail risk      50%      CVaR of equity column   Higher tail → more hedge
+  IV regime      30%      IV percentile vs hist    Cheap IV → more hedge
+  Momentum       20%      Recent equity returns    Drawdown → more hedge
+
+  hedge_score = 0.50·tail_score + 0.30·iv_score + 0.20·mom_score  ∈ [0, 1]
+  max_put_weight = hedge_floor + (max_opt - hedge_floor) · hedge_score
+
+Tail score:  CVaR_eq from scenario distribution. Normalized:
+             0 when CVaR ≤ 2%, 1 when CVaR ≥ 6% (was 4%; now less aggressive in mild regimes).
+
+IV score:    Percentile of current IV vs. trailing window.
+             1.0 when IV is at the bottom of its range (cheapest); 0 at top.
+
+Momentum:    Sum of recent equity returns (lookback 5 periods).
+             0.5 at neutral, 1.0 when cumulative return < -5%.
+
+The hedge_floor (default 0.005 = 0.5%) ensures a small put position even in
+calm markets — it's cheap insurance that prevents starting from zero when a
+shock arrives.
+
+Scenario CVaR mode additionally uses the **hedge_score** to impose a minimum
+put floor when stress is high:
+  - When `hedge_score >= 0.40`, enforce `min_put_weight ≈ 40% of max_put_weight`
+    via a linear constraint in the CVaR optimizer.
+  - In calm regimes (`hedge_score < 0.40`), no floor is imposed; the optimizer
+    can choose zero puts if they are not justified by tail risk.
+
+
+================================================================================
+5. COMPARISON: WHEN TO USE WHICH
+================================================================================
+
+                        Markowitz++              Scenario CVaR
+  ────────────────────  ───────────────────────  ───────────────────────
+  Risk model            Gaussian (μ, Σ)          Full distribution (R)
+  Tail sensitivity      None (2nd moment only)   Explicit (CVaR on tails)
+  Options treatment     Delta-equiv Σ            Held-contract repricing
+  Put spread support    Yes (via dynamic hedge)  Native (in scenario matrix)
+  Dynamic IV            Via IEWMA + RND blend    Native (skew model in MC)
+  Speed                 Fast (SOCP)              Fast (LP via R-U)
+  Best for              Conservative allocation  Tail-risk-aware allocation
+  Multi-asset           Not yet (single only)    Supported (3K+1 assets)
+
+Switch mode in the notebook:
+  MODE = "markowitz"  or  MODE = "scenario"
+
+Or in code:
+  config = ScenarioBacktestConfig(optimizer_mode="markowitz", ...)
+
+
+================================================================================
+6. DATA PIPELINE
+================================================================================
+
+  Source:     Alpaca Markets API (StockHistoricalDataClient, OptionHistoricalDataClient)
+  Symbols:   SPY, AAPL, CRWD (extensible to any optionable equity)
+  Storage:   data/raw/{symbol}_daily.parquet, data/raw/option_chains/{SYMBOL}/
+
+  Fetch:
+    python -m data.fetch_alpaca --symbols SPY AAPL CRWD
+    python -m data.fetch_alpaca --symbols AAPL --no-historical  # bars + current chain only
+
+  Chain layout:
+    SPY:   data/raw/option_chains/calls_{date}.parquet (flat, backward compat)
+    AAPL:  data/raw/option_chains/AAPL/calls_{date}.parquet
+    CRWD:  data/raw/option_chains/CRWD/calls_{date}.parquet
+
+  Multi-asset:
+    Joint chain dates = intersection of dates where all symbols have data.
+    Scenario matrix = column-stack of per-symbol (N, 3) blocks + one cash col.
+
+
+================================================================================
+7. KEY HYPERPARAMETERS
+================================================================================
+
+  Param                     Default   Used by       Effect
+  ────────────────────────  ────────  ────────────  ──────────────────────────
+  n_samples                 20,000    Both          MC paths per period
+  cvar_alpha                0.95      Scenario      Tail probability
+  cvar_lambda_rel           0.05      Scenario      CVaR penalty on relative loss (port − bench)
+  cvar_lambda_abs           0.30      Scenario      CVaR penalty on absolute loss (−port)
+  gamma                     5.0       Markowitz     Risk aversion
+  max_option_weight         0.05      Both          Combined call+put cap
+  put_spread_width          0.08      Both          OTM put short strike offset
+  skew_beta                 2.5       Both          IV bump per % down move
+  hedge_mode                dynamic   Both          "dynamic" | "always" | "never"
+  hedge_floor               0.005     Both          Min put weight in calm
+  max_turnover              0.25      Both          Per-period turnover cap
+  max_port_vol              0.12      Markowitz     Hard portfolio vol cap (SOCP)
+  SIGMA_IEWMA_WEIGHT        0.70      Markowitz     Baseline IEWMA vs RND Sigma weight (before CM-IEWMA dynamics)
+  MU_UNCERTAINTY (ρ)        0.01      Markowitz     Return uncertainty penalty
+  COV_UNCERTAINTY (κ)       0.10      Markowitz     Covariance diagonal boost

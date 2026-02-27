@@ -37,6 +37,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 from config import (
+    IDIO_FRAC,
     MAX_BID_ASK_SPREAD_PCT,
     MIN_BL_STRIKES,
     MIN_OPTION_MID,
@@ -44,16 +45,24 @@ from config import (
     MU_CLIP_SPY,
     OPTION_CHAINS_DIR,
     OPTION_RETURN_WINSORIZE_PCT,
+    RAW_DIR,
     REBALANCE_DAYS,
+    SCENARIO_PUT_SPREAD_WIDTH,
     SPY_DAILY_FILE,
     TARGET_IDEAL_DTE,
     TARGET_MAX_DTE,
     TARGET_MIN_DTE,
+    USE_DELTA_EQUIV_SIGMA,
 )
+from data.derivatives import build_put_spread, price_put_spread
 
 logger = logging.getLogger(__name__)
 
 ASSET_ORDER = ["SPY", "SPY_CALL", "SPY_PUT", "USDOLLAR"]
+
+# When True, skip Breeden-Litzenberger entirely and always use lognormal IV.
+# Patched from notebook during parameter sweeps.
+FORCE_LOGNORMAL = False
 
 # Relaxed filter values used when strict filters leave too few strikes
 _RELAXED_MIN_MID = 0.02
@@ -61,17 +70,71 @@ _RELAXED_MAX_SPREAD = 0.80
 
 
 # ---------------------------------------------------------------------------
+# Delta-equivalent risk (Fast Direction A)
+# ---------------------------------------------------------------------------
+# Pragmatic approximation: treat option variance as delta^2 * Sigma_spy_spy
+# plus a small idiosyncratic floor, so the Markowitz optimizer sees options
+# as SPY-equivalent exposure. Next step: scenario-based / factor optimization (C+E).
+
+# Default deltas for ATM options (hardcoded; no external deps).
+# SPY = 1.0; call ≈ +0.5, put ≈ -0.5.
+DEFAULT_DELTAS = {"SPY": 1.0, "SPY_CALL": 0.50, "SPY_PUT": -0.50}
+
+
+def apply_delta_equivalent_risk(
+    Sigma: pd.DataFrame,
+    deltas: Optional[Dict[str, float]] = None,
+    idio_frac: float = 0.10,
+) -> pd.DataFrame:
+    """
+    Replace the [SPY, SPY_CALL, SPY_PUT] block of Sigma so options are treated
+    as delta-equivalent SPY exposure plus a small idiosyncratic variance floor.
+    USDOLLAR variance and covariances are set to 1e-10 and 0 respectively.
+    Returns a symmetric matrix with diagonals >= 1e-10.
+    """
+    deltas = deltas or DEFAULT_DELTAS
+    Sigma_out = Sigma.copy()
+    sigma_spy = float(Sigma.loc["SPY", "SPY"])
+    risky = ["SPY", "SPY_CALL", "SPY_PUT"]
+
+    # Sigma_equiv[i,j] = delta_i * delta_j * Sigma_spy_spy
+    for i in risky:
+        for j in risky:
+            Sigma_out.loc[i, j] = deltas[i] * deltas[j] * sigma_spy
+
+    # Add idiosyncratic diagonal for options only (SPY diagonal unchanged)
+    Sigma_out.loc["SPY_CALL", "SPY_CALL"] += idio_frac * sigma_spy
+    Sigma_out.loc["SPY_PUT", "SPY_PUT"] += idio_frac * sigma_spy
+
+    # USDOLLAR: zero covariances, tiny variance
+    for a in risky:
+        Sigma_out.loc["USDOLLAR", a] = 0.0
+        Sigma_out.loc[a, "USDOLLAR"] = 0.0
+    Sigma_out.loc["USDOLLAR", "USDOLLAR"] = 1e-10
+
+    # Force symmetry and ensure PSD-ish (diagonals >= 1e-10)
+    Sigma_out = (Sigma_out + Sigma_out.T) / 2.0
+    for a in Sigma_out.index:
+        Sigma_out.loc[a, a] = max(float(Sigma_out.loc[a, a]), 1e-10)
+
+    return Sigma_out
+
+
+# ---------------------------------------------------------------------------
 # Chain loading
 # ---------------------------------------------------------------------------
 
-def _latest_chain_date() -> Optional[str]:
-    """Return latest date string (YYYY-MM-DD) for which we have calls/puts."""
-    if not OPTION_CHAINS_DIR.exists():
+def _latest_chain_date(underlying: str = "SPY") -> Optional[str]:
+    """Return latest date string (YYYY-MM-DD) for which we have calls/puts.
+    SPY: flat OPTION_CHAINS_DIR. Others: OPTION_CHAINS_DIR/{underlying}/.
+    """
+    chain_dir = OPTION_CHAINS_DIR if underlying == "SPY" else OPTION_CHAINS_DIR / underlying
+    if not chain_dir.exists():
         return None
     dates = set()
-    for f in OPTION_CHAINS_DIR.glob("calls_*.parquet"):
+    for f in chain_dir.glob("calls_*.parquet"):
         stem = f.stem.replace("calls_", "")
-        if stem:
+        if stem and not stem.startswith("_"):
             dates.add(stem)
     return max(dates) if dates else None
 
@@ -101,6 +164,10 @@ def _filter_quotes(
             bad_idx = quoted.index[~ok]
             df = df.drop(bad_idx)
     keep = ["strike", "mid", "expiry"]
+    if "bid" in df.columns:
+        keep.append("bid")
+    if "ask" in df.columns:
+        keep.append("ask")
     if "impl_vol" in df.columns:
         keep.append("impl_vol")
     return df[[c for c in keep if c in df.columns]].sort_values("strike")
@@ -132,18 +199,21 @@ def load_chain_for_expiry(
     expiry: Optional[str] = None,
     min_mid: float = MIN_OPTION_MID,
     max_spread: float = MAX_BID_ASK_SPREAD_PCT,
+    underlying: str = "SPY",
 ) -> Tuple[pd.DataFrame, pd.DataFrame, str]:
     """
     Load calls and puts for a single expiry.
 
+    underlying: "SPY" uses flat OPTION_CHAINS_DIR. Others use OPTION_CHAINS_DIR/{underlying}/.
     When *expiry* is None the function picks the expiry with the **most valid
     call strikes** after filtering (instead of blindly using the front month).
     """
-    date_str = chain_date or _latest_chain_date()
+    chain_dir = OPTION_CHAINS_DIR if underlying == "SPY" else OPTION_CHAINS_DIR / underlying
+    date_str = chain_date or _latest_chain_date(underlying)
     if not date_str:
-        raise FileNotFoundError("No option chain found in " + str(OPTION_CHAINS_DIR))
-    path_calls = OPTION_CHAINS_DIR / f"calls_{date_str}.parquet"
-    path_puts = OPTION_CHAINS_DIR / f"puts_{date_str}.parquet"
+        raise FileNotFoundError("No option chain found in " + str(chain_dir))
+    path_calls = chain_dir / f"calls_{date_str}.parquet"
+    path_puts = chain_dir / f"puts_{date_str}.parquet"
     if not path_calls.exists() or not path_puts.exists():
         raise FileNotFoundError("Chain files not found for date " + date_str)
     all_calls = pd.read_parquet(path_calls)
@@ -161,9 +231,10 @@ def load_chain_for_expiry(
 
     # Resolve spot for strike-range scoring
     _spot_for_score = None
-    if SPY_DAILY_FILE.exists():
-        _spy = pd.read_parquet(SPY_DAILY_FILE)
-        _spot_for_score = float(_spy["close"].iloc[-1])
+    price_file = SPY_DAILY_FILE if underlying == "SPY" else RAW_DIR / f"{underlying.lower()}_daily.parquet"
+    if price_file.exists():
+        _prices = pd.read_parquet(price_file)
+        _spot_for_score = float(_prices["close"].iloc[-1])
 
     ref_date = pd.Timestamp(date_str)
 
@@ -253,14 +324,151 @@ def load_chain_for_expiry(
 
 
 # ---------------------------------------------------------------------------
-# Breeden-Litzenberger density (with spline smoothing)
+# IV-space Breeden-Litzenberger density  (improved method)
+# ---------------------------------------------------------------------------
+# Instead of smoothing raw call prices (noisy), we:
+#   1. Extract OTM options (calls K>spot, puts K<spot) — most liquid
+#   2. Invert BS to get implied volatility σ(K) for each OTM strike
+#   3. Fit a 4th-degree smoothing spline to σ(K)
+#   4. Evaluate smooth C(K) = BS_Call(S, K, r, T, σ_spline(K)) on fine grid
+#   5. Numerical d²C/dK² on the smooth curve → q(K)
+# This dramatically reduces noise because IV varies slowly across strikes.
 # ---------------------------------------------------------------------------
 
+
+def _extract_otm_ivs(
+    calls: pd.DataFrame,
+    puts: pd.DataFrame,
+    spot: float,
+    r: float,
+    T: float,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Extract implied vols from OTM options: calls for K > spot, puts for K < spot.
+
+    Returns sorted arrays (strikes, ivs) covering the full range.
+    """
+    strikes_out = []
+    ivs_out = []
+
+    # OTM puts: K < spot
+    if len(puts) > 0:
+        otm_puts = puts[puts["strike"] < spot].copy()
+        for _, row in otm_puts.iterrows():
+            K = float(row["strike"])
+            mid = float(row["mid"])
+            if "impl_vol" in row and pd.notna(row.get("impl_vol")):
+                iv_chain = float(row["impl_vol"])
+                if 0.02 < iv_chain < 3.0:
+                    strikes_out.append(K)
+                    ivs_out.append(iv_chain)
+                    continue
+            iv = _bs_implied_vol(mid, spot, K, r, T, is_call=False)
+            if iv is not None and 0.02 < iv < 3.0:
+                strikes_out.append(K)
+                ivs_out.append(iv)
+
+    # OTM calls: K > spot
+    if len(calls) > 0:
+        otm_calls = calls[calls["strike"] > spot].copy()
+        for _, row in otm_calls.iterrows():
+            K = float(row["strike"])
+            mid = float(row["mid"])
+            if "impl_vol" in row and pd.notna(row.get("impl_vol")):
+                iv_chain = float(row["impl_vol"])
+                if 0.02 < iv_chain < 3.0:
+                    strikes_out.append(K)
+                    ivs_out.append(iv_chain)
+                    continue
+            iv = _bs_implied_vol(mid, spot, K, r, T, is_call=True)
+            if iv is not None and 0.02 < iv < 3.0:
+                strikes_out.append(K)
+                ivs_out.append(iv)
+
+    if len(strikes_out) < 3:
+        return np.array([]), np.array([])
+
+    strikes_arr = np.array(strikes_out)
+    ivs_arr = np.array(ivs_out)
+    order = np.argsort(strikes_arr)
+    return strikes_arr[order], ivs_arr[order]
+
+
+def _fit_iv_spline(
+    strikes: np.ndarray,
+    ivs: np.ndarray,
+    spot: float,
+) -> Optional[UnivariateSpline]:
+    """Fit a smoothing spline to the IV smile σ(K).
+
+    Uses degree-4 spline with smoothing factor proportional to the number of
+    data points.  Weights points near ATM more heavily.
+    """
+    if len(strikes) < 5:
+        return None
+    try:
+        moneyness = strikes / spot
+        weights = np.exp(-2.0 * (moneyness - 1.0) ** 2)
+        weights = np.maximum(weights, 0.1)
+
+        # s = smoothing factor; len(strikes) gives gentle smoothing
+        spline = UnivariateSpline(
+            strikes, ivs, k=4, s=len(strikes) * 0.5, w=weights,
+        )
+        return spline
+    except Exception:
+        try:
+            spline = UnivariateSpline(strikes, ivs, k=3, s=len(strikes))
+            return spline
+        except Exception:
+            return None
+
+
+def _bl_from_iv_spline(
+    iv_spline: UnivariateSpline,
+    spot: float,
+    r: float,
+    T: float,
+    K_lo: float,
+    K_hi: float,
+    n_grid: int = 500,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Breeden-Litzenberger density from a smooth IV surface.
+
+    Evaluates C(K) = BS_Call(spot, K, r, T, σ_spline(K)) on a fine grid,
+    then computes q(K) = e^{rT} * d²C/dK² numerically.
+    """
+    K_grid = np.linspace(K_lo, K_hi, n_grid)
+    iv_grid = iv_spline(K_grid)
+    iv_grid = np.clip(iv_grid, 0.02, 3.0)
+
+    sqrtT = np.sqrt(T)
+    C_grid = np.zeros(n_grid)
+    for i, (K, sigma) in enumerate(zip(K_grid, iv_grid)):
+        d1 = (np.log(spot / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrtT)
+        d2 = d1 - sigma * sqrtT
+        C_grid[i] = spot * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+
+    # Enforce monotone non-increasing (no-arb)
+    for i in range(1, n_grid):
+        C_grid[i] = min(C_grid[i], C_grid[i - 1])
+    C_grid = np.maximum(C_grid, 0.0)
+
+    dK = K_grid[1] - K_grid[0]
+    d2C = (C_grid[2:] - 2 * C_grid[1:-1] + C_grid[:-2]) / (dK ** 2)
+
+    q = np.exp(r * T) * d2C
+    q = np.maximum(q, 0.0)
+
+    frac_zero = np.mean(q <= 1e-15)
+    if frac_zero > 0.80:
+        logger.debug("IV-spline BL: %.0f%% of density is zero", 100 * frac_zero)
+        return np.array([]), np.array([])
+
+    return K_grid[1:-1], q
+
+
 def _smooth_call_prices(K: np.ndarray, C: np.ndarray) -> np.ndarray:
-    """
-    Fit a smoothing spline to call prices C(K) and enforce monotone
-    non-increasing (no-arb: calls decrease in strike).
-    """
+    """Legacy price-space smoothing (fallback when IV-space fails)."""
     try:
         spline = UnivariateSpline(K, C, k=3, s=len(K))
         C_smooth = spline(K)
@@ -278,15 +486,37 @@ def breeden_litzenberger_pdf(
     r: float,
     T: float,
     smooth: bool = True,
+    puts: Optional[pd.DataFrame] = None,
+    spot: Optional[float] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Risk-neutral density q(K) from call prices via Breeden-Litzenberger.
+    """Risk-neutral density via Breeden-Litzenberger.
 
-    Optionally smooth call prices with a spline before differentiating,
-    which dramatically reduces noise from discrete quotes.
+    **Improved method** (when puts and spot are provided):
+      Uses IV-space spline on OTM options — dramatically smoother densities.
 
-    Returns interior strikes and pdf (endpoints dropped by second derivative).
+    **Legacy fallback** (calls-only):
+      Spline on raw call prices then d²C/dK².
     """
+    # --- Try IV-space method first (preferred) ---
+    if puts is not None and spot is not None and spot > 0:
+        K_iv, IV = _extract_otm_ivs(calls, puts, spot, r, T)
+        if len(K_iv) >= 8:
+            spline = _fit_iv_spline(K_iv, IV, spot)
+            if spline is not None:
+                K_lo = max(K_iv.min(), spot * 0.80)
+                K_hi = min(K_iv.max(), spot * 1.20)
+                if K_hi - K_lo > spot * 0.05:
+                    K_grid, q = _bl_from_iv_spline(spline, spot, r, T, K_lo, K_hi)
+                    if len(K_grid) > 0:
+                        logger.info(
+                            "IV-spline BL: %d OTM IVs → %d grid points, "
+                            "IV range [%.2f, %.2f]",
+                            len(K_iv), len(K_grid), IV.min(), IV.max(),
+                        )
+                        return K_grid, q
+            logger.debug("IV-spline BL failed; falling back to price-space BL")
+
+    # --- Legacy price-space BL ---
     K = calls["strike"].values.astype(float)
     C = calls["mid"].values.astype(float)
     if len(K) < 3:
@@ -298,6 +528,15 @@ def breeden_litzenberger_pdf(
         return np.array([]), np.array([])
     dK_mid = (dK[1:] + dK[:-1]) / 2
     d2C = (C[2:] - 2 * C[1:-1] + C[:-2]) / (dK_mid ** 2)
+
+    frac_negative = np.mean(d2C <= 0)
+    if frac_negative > 0.50:
+        logger.debug(
+            "BL: %.0f%% of d2C values negative — density unsalvageable",
+            100 * frac_negative,
+        )
+        return np.array([]), np.array([])
+
     q = np.exp(r * T) * d2C
     q = np.maximum(q, 1e-12)
     return K[1:-1].copy(), q
@@ -314,10 +553,13 @@ def sample_terminal_prices(
     pdf = pdf / pdf.sum()
     cdf = np.cumsum(pdf)
     cdf = cdf / cdf[-1]
-    u = np.random.default_rng().uniform(0, 1, size=n_samples)
+    rng = np.random.default_rng()
+    u = rng.uniform(0, 1, size=n_samples)
     idx = np.searchsorted(cdf, u, side="right")
     idx = np.clip(idx, 1, len(cdf) - 1)
-    w = (u - cdf[idx - 1]) / (cdf[idx] - cdf[idx - 1] + 1e-12)
+    step = cdf[idx] - cdf[idx - 1]
+    w = np.where(step > 1e-10, (u - cdf[idx - 1]) / step, 0.5)
+    w = np.clip(w, 0.0, 1.0)
     S_T = (1 - w) * strikes[idx - 1] + w * strikes[idx]
     return S_T
 
@@ -391,15 +633,18 @@ def _get_atm_iv(
 
 def _lognormal_sample(
     spot: float,
-    r: float,
+    mu: float,
     T: float,
     sigma: float,
     n_samples: int,
 ) -> np.ndarray:
-    """S_T = S_0 * exp((r - sigma^2/2)*T + sigma*sqrt(T)*Z)."""
+    """S_T = S_0 * exp((mu - sigma^2/2)*T + sigma*sqrt(T)*Z).
+    
+    mu: drift (annualized). Use risk-free rate r for Q measure, r+premium for P measure.
+    """
     rng = np.random.default_rng()
     Z = rng.standard_normal(n_samples)
-    return spot * np.exp((r - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
+    return spot * np.exp((mu - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
 
 
 def _bs_call_price(S: float, K: float, r: float, T: float, sigma: float) -> float:
@@ -436,6 +681,39 @@ def _bs_put_vec(S: np.ndarray, K: float, r: float, T: float, sigma: float) -> np
     d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrtT)
     d2 = d1 - sigma * sqrtT
     return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+
+# ---------------------------------------------------------------------------
+# Black-Scholes Greeks (for delta-gamma variance model, Zhao & Palomar 2018)
+# ---------------------------------------------------------------------------
+
+def _bs_delta(S: float, K: float, r: float, T: float, sigma: float, is_call: bool) -> float:
+    """Delta: ∂V/∂S. Call: N(d1); Put: N(d1) - 1."""
+    if T <= 0:
+        return 1.0 if (is_call and S > K) or (not is_call and S < K) else 0.0
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    return float(norm.cdf(d1) if is_call else norm.cdf(d1) - 1.0)
+
+
+def _bs_gamma(S: float, K: float, r: float, T: float, sigma: float) -> float:
+    """Gamma: ∂²V/∂S². Same for call and put."""
+    if T <= 0 or sigma <= 0 or S <= 0:
+        return 0.0
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    return float(norm.pdf(d1) / (S * sigma * np.sqrt(T)))
+
+
+def _bs_theta(S: float, K: float, r: float, T: float, sigma: float, is_call: bool) -> float:
+    """Theta: ∂V/∂t (per year). Negative = time decay."""
+    if T <= 0:
+        return 0.0
+    sqrtT = np.sqrt(T)
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrtT)
+    d2 = d1 - sigma * sqrtT
+    term1 = -S * norm.pdf(d1) * sigma / (2 * sqrtT)
+    if is_call:
+        return float(term1 - r * K * np.exp(-r * T) * norm.cdf(d2))
+    return float(term1 + r * K * np.exp(-r * T) * norm.cdf(-d2))
 
 
 # ---------------------------------------------------------------------------
@@ -480,6 +758,7 @@ def compute_rnd_forecasts(
     mu_clip_option: Optional[Tuple[float, float]] = None,
     rebalance_days: Optional[int] = REBALANCE_DAYS,
     return_diagnostics: bool = False,
+    underlying: str = "SPY",
 ) -> Union[Tuple[pd.Series, pd.DataFrame], Tuple[pd.Series, pd.DataFrame, Dict]]:
     """
     Sample S_{t+1} at the rebalance horizon, reprice options at t+1 via BS
@@ -507,7 +786,7 @@ def compute_rnd_forecasts(
     # 1. Load chain — strict filters first, relax if too few strikes
     # ------------------------------------------------------------------
     calls, puts, expiry_used = load_chain_for_expiry(
-        chain_date=chain_date, expiry=expiry,
+        chain_date=chain_date, expiry=expiry, underlying=underlying,
     )
     if len(calls) < MIN_BL_STRIKES:
         logger.info(
@@ -517,6 +796,7 @@ def compute_rnd_forecasts(
         calls, puts, expiry_used = load_chain_for_expiry(
             chain_date=chain_date, expiry=expiry,
             min_mid=_RELAXED_MIN_MID, max_spread=_RELAXED_MAX_SPREAD,
+            underlying=underlying,
         )
         logger.info("Relaxed filters: %d calls, %d puts", len(calls), len(puts))
 
@@ -524,13 +804,14 @@ def compute_rnd_forecasts(
     # 2. Resolve spot, rate, time-to-expiry
     # ------------------------------------------------------------------
     if spot is None:
-        if SPY_DAILY_FILE.exists():
-            spy = pd.read_parquet(SPY_DAILY_FILE)
-            spot = float(spy["close"].iloc[-1])
+        price_file = SPY_DAILY_FILE if underlying == "SPY" else RAW_DIR / f"{underlying.lower()}_daily.parquet"
+        if price_file.exists():
+            px = pd.read_parquet(price_file)
+            spot = float(px["close"].iloc[-1])
         else:
             spot = 500.0
     r = risk_free_rate if risk_free_rate is not None else 0.05
-    date_str = chain_date or _latest_chain_date()
+    date_str = chain_date or _latest_chain_date(underlying)
     T = (pd.Timestamp(expiry_used) - pd.Timestamp(date_str)).days / 365.0
     T = max(T, 1 / 365.0)
 
@@ -560,12 +841,16 @@ def compute_rnd_forecasts(
     # but for the prototype the lognormal is the workhorse.
     T_sample = T if use_terminal_payoff else T_rebal
 
-    strikes, pdf = breeden_litzenberger_pdf(calls, r, T, smooth=True)
+    strikes, pdf = breeden_litzenberger_pdf(
+        calls, r, T, smooth=True, puts=puts, spot=spot,
+    )
     n_interior = len(strikes)
 
     bl_method = "lognormal_iv_fallback"
     bl_reject_reason = ""
-    if n_interior >= MIN_BL_STRIKES:
+    if FORCE_LOGNORMAL:
+        bl_reject_reason = "FORCE_LOGNORMAL is True — skipping BL"
+    elif n_interior >= MIN_BL_STRIKES:
         if strikes.max() < spot * 0.98 or strikes.min() > spot * 1.02:
             bl_reject_reason = (
                 "strikes don't span spot: [%.0f, %.0f] vs spot=%.0f"
@@ -602,11 +887,11 @@ def compute_rnd_forecasts(
         bl_reject_reason = "%d interior strikes < %d required" % (n_interior, MIN_BL_STRIKES)
 
     if bl_reject_reason:
-        logger.warning("BL rejected: %s", bl_reject_reason)
+        logger.debug("BL rejected: %s", bl_reject_reason)
 
     if bl_method != "breeden_litzenberger":
         atm_iv = _get_atm_iv(calls, puts, spot, r, T)
-        logger.warning(
+        logger.debug(
             "Using lognormal fallback IV=%.2f  (%d BL interior strikes)",
             atm_iv, n_interior,
         )
@@ -658,39 +943,53 @@ def compute_rnd_forecasts(
     p_atm = max(p_atm, MIN_OPTION_MID)
 
     # ------------------------------------------------------------------
-    # 5. Compute returns via horizon repricing (or terminal payoff)
+    # 5. Put sleeve: unified put spread (shared helper)
+    # ------------------------------------------------------------------
+    put_spread_width = float(SCENARIO_PUT_SPREAD_WIDTH)
+    k_put_short, p_spread_entry = build_put_spread(
+        spot, k_atm, r, T, atm_iv_used, put_spread_width, min_mid=MIN_OPTION_MID,
+    )
+    p_spread_entry = max(p_spread_entry, MIN_OPTION_MID)
+    p_short_entry = 0.0  # for diag; entry long - short already in p_spread_entry
+    if k_put_short > 0:
+        p_short_entry = float(_bs_put_price(spot, k_put_short, r, T, atm_iv_used))
+
+    # ------------------------------------------------------------------
+    # 6. Compute returns via horizon repricing (or terminal payoff)
     # ------------------------------------------------------------------
     r_spy = S_next / spot - 1.0
 
     if use_terminal_payoff:
-        # Option expires before/at next rebalance → intrinsic payoff
         C_t1 = np.maximum(S_next - k_atm, 0.0)
-        P_t1 = np.maximum(k_atm - S_next, 0.0)
+        spread_value_t1 = price_put_spread(
+            S_next, k_atm, k_put_short, r, 0.0, atm_iv_used, intrinsic_if_expired=True,
+        )
         r_cash_arr = (np.exp(r * T) - 1.0) * np.ones_like(S_next)
     else:
-        # Reprice options at t+1 with remaining time T_remain (sticky-strike IV)
         C_t1 = _bs_call_vec(S_next, k_atm, r, T_remain, atm_iv_used)
-        P_t1 = _bs_put_vec(S_next, k_atm, r, T_remain, atm_iv_used)
+        spread_value_t1 = price_put_spread(
+            S_next, k_atm, k_put_short, r, T_remain, atm_iv_used, intrinsic_if_expired=True,
+        )
         r_cash_arr = (np.exp(r * T_rebal) - 1.0) * np.ones_like(S_next)
 
     r_call = C_t1 / c_atm - 1.0
-    r_put = P_t1 / p_atm - 1.0
+    r_put_spread = spread_value_t1 / p_spread_entry - 1.0
 
     r_call_raw_mean = float(np.nanmean(r_call))
-    r_put_raw_mean = float(np.nanmean(r_put))
+    r_put_raw_mean = float(np.nanmean(r_put_spread))
 
     p_lo, p_hi = OPTION_RETURN_WINSORIZE_PCT
     c_lo, c_hi = np.nanpercentile(r_call, p_lo), np.nanpercentile(r_call, p_hi)
     r_call_w = np.clip(r_call, c_lo, c_hi)
-    pl, ph = np.nanpercentile(r_put, p_lo), np.nanpercentile(r_put, p_hi)
-    r_put_w = np.clip(r_put, pl, ph)
+    pl, ph = np.nanpercentile(r_put_spread, p_lo), np.nanpercentile(r_put_spread, p_hi)
+    r_put_w = np.clip(r_put_spread, pl, ph)
 
     n = len(r_call)
     n_call_capped = int(np.sum(r_call != r_call_w))
-    n_put_capped = int(np.sum(r_put != r_put_w))
+    n_put_capped = int(np.sum(r_put_spread != r_put_w))
 
     # ------------------------------------------------------------------
-    # 6. mu and Sigma
+    # 7. mu and Sigma (SPY_PUT column = put spread return)
     # ------------------------------------------------------------------
     M = np.column_stack([r_spy, r_call_w, r_put_w, r_cash_arr])
     mu = pd.Series(M.mean(axis=0), index=ASSET_ORDER)
@@ -707,22 +1006,39 @@ def compute_rnd_forecasts(
         mu["SPY_PUT"] = np.clip(mu["SPY_PUT"], mu_clip_option[0], mu_clip_option[1])
 
     # ------------------------------------------------------------------
-    # 7. Rescale option volatilities (fix: .loc column then .loc row)
+    # 8. Optionally rescale option volatilities
     # ------------------------------------------------------------------
-    sig_spy = np.sqrt(max(Sigma.loc["SPY", "SPY"], 1e-8))
-    for name in ("SPY_CALL", "SPY_PUT"):
-        sig_opt = np.sqrt(max(Sigma.loc[name, name], 1e-8))
-        if sig_opt > 1e-8:
-            scale = (option_vol_mult * sig_spy) / sig_opt
-            Sigma.loc[:, name] *= scale   # column
-            Sigma.loc[name, :] *= scale   # row
+    # With horizon repricing, the Monte Carlo already produces correct
+    # option return variances (reflects delta leverage + time decay).
+    # Only rescale for terminal-payoff mode where variance is artificial.
+    if use_terminal_payoff and option_vol_mult > 0:
+        sig_spy = np.sqrt(max(Sigma.loc["SPY", "SPY"], 1e-8))
+        for name in ("SPY_CALL", "SPY_PUT"):
+            sig_opt = np.sqrt(max(Sigma.loc[name, name], 1e-8))
+            if sig_opt > 1e-8:
+                scale = (option_vol_mult * sig_spy) / sig_opt
+                Sigma.loc[:, name] *= scale   # column
+                Sigma.loc[name, :] *= scale   # row
 
     Sigma = (Sigma + Sigma.T) / 2
     for a in ASSET_ORDER:
         Sigma.loc[a, a] = max(Sigma.loc[a, a], 1e-10)
 
     # ------------------------------------------------------------------
-    # 8. Diagnostics
+    # 8b. Delta-equivalent Sigma (Fast Direction A)
+    # ------------------------------------------------------------------
+    sigma_mode = "raw"
+    if USE_DELTA_EQUIV_SIGMA:
+        sigma_spy_spy = float(Sigma.loc["SPY", "SPY"])
+        Sigma = apply_delta_equivalent_risk(Sigma, DEFAULT_DELTAS, IDIO_FRAC)
+        sigma_mode = "delta_equiv"
+        logger.info(
+            "Delta-equiv Sigma: sigma_spy_spy=%.6f deltas=%s idio_frac=%.2f",
+            sigma_spy_spy, DEFAULT_DELTAS, IDIO_FRAC,
+        )
+
+    # ------------------------------------------------------------------
+    # 9. Diagnostics
     # ------------------------------------------------------------------
     dte = (pd.Timestamp(expiry_used) - pd.Timestamp(date_str)).days
     if return_diagnostics:
@@ -750,6 +1066,15 @@ def compute_rnd_forecasts(
             "r_put_mean_raw": r_put_raw_mean,
             "r_call_mean_after": float(mu["SPY_CALL"]),
             "r_put_mean_after": float(mu["SPY_PUT"]),
+            "sigma_mode": sigma_mode,
+            "delta_call": DEFAULT_DELTAS["SPY_CALL"],
+            "delta_put": DEFAULT_DELTAS["SPY_PUT"],
+            "idio_frac": IDIO_FRAC,
+            "put_is_spread": put_spread_width > 0,
+            "put_spread_width": put_spread_width,
+            "k_put_short": float(k_put_short),
+            "p_spread_entry": float(p_spread_entry),
+            "p_short_entry": float(p_short_entry),
         }
         return mu, Sigma, diag
     return mu, Sigma
@@ -786,3 +1111,5 @@ if __name__ == "__main__":
         diag["r_call_mean_raw"], diag["r_call_mean_after"]))
     print("  r_put  mean: raw %.6f -> after %.6f" % (
         diag["r_put_mean_raw"], diag["r_put_mean_after"]))
+    print("  sigma_mode=%s  delta_call=%.2f  delta_put=%.2f  idio_frac=%.2f" % (
+        diag["sigma_mode"], diag["delta_call"], diag["delta_put"], diag["idio_frac"]))

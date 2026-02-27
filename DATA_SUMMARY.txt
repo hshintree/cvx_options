@@ -1,0 +1,133 @@
+================================================================================
+  ALPACA DATA SUMMARY  —  Generated 2026-02-18
+================================================================================
+
+
+================================================================================
+1. DATA INVENTORY
+================================================================================
+
+Source:            Alpaca Markets API (Indicative feed for options)
+SPY Daily Bars:    534 trading days (2024-01-02 to 2026-02-18)
+Chain Snapshots:   39 dates (2024-02-01 to 2026-02-18, ~biweekly at 14-day intervals)
+
+Current (live) snapshot (2026-02-18):
+  675 calls, 675 puts across 7 expiries
+  95% have bid > 0, 94% have valid IV
+  Includes greeks (delta, gamma, theta, vega)
+  Strikes: $584 to $785, spot ~$686
+
+Historical (bars-reconstructed) snapshots (37 dates, Feb 2024 - Feb 2026):
+  155 to 375 calls per date (median ~240)
+  3 to 6 expiries per date
+  Prices from daily closing bars (lastPrice), no live bid/ask
+  IV = 0 in raw data — derived via BS inversion in forecasts.py
+
+
+================================================================================
+2. OPTION CHAIN QUALITY PER DATE
+================================================================================
+
+Date         Calls  Puts  Exp  Strikes         Bid>0   IV>0.01
+─────────────────────────────────────────────────────────────────
+2024-02-01    199    183    4   440 - 535        0%       0%     (bars)
+2024-02-22    155    149    3   458 - 555        0%       0%     (bars)
+2024-03-13    162    184    4   464 - 565        0%       0%     (bars)
+2024-04-03    200    242    5   468 - 570        0%       0%     (bars)
+2024-04-23    209    181    4   455 - 555        0%       0%     (bars)
+2024-05-13    208    202    4   470 - 570        0%       0%     (bars)
+2024-06-03    242    265    5   475 - 580        0%       0%     (bars)
+2024-06-14    212    218    4   487 - 590        0%       0%     (bars)
+2024-06-24    197    213    5   490 - 595        0%       0%     (bars)
+2024-07-15    260    298    6   505 - 615        0%       0%     (bars)
+2024-08-02    342    333    5   479 - 585        0%       0%     (bars)
+2024-08-22    179    196    3   500 - 610        0%       0%     (bars)
+2024-09-12    271    298    5   505 - 610        0%       0%     (bars)
+2024-10-02    248    261    5   511 - 625        0%       0%     (bars)
+2024-10-22    192    197    4   530 - 640        0%       0%     (bars)
+2024-11-11    238    271    5   540 - 655        0%       0%     (bars)
+2024-12-02    253    287    5   543 - 660        0%       0%     (bars)
+2024-12-20    238    195    4   535 - 650        0%       0%     (bars)
+2025-01-14    255    285    4   525 - 640        0%       0%     (bars)
+2025-02-04    174    199    3   546 - 660        0%       0%     (bars)
+2025-02-25    251    260    4   540 - 650        0%       0%     (bars)
+2025-03-17    375    347    5   510 - 623        0%       0%     (bars)
+2025-04-04    223    254    4   455 - 555        0%       0%     (bars)
+2025-04-25    349    336    5   495 - 605        0%       0%     (bars)
+2025-05-15    199    176    3   531 - 645        0%       0%     (bars)
+2025-06-05    286    290    4   533 - 650        0%       0%     (bars)
+2025-06-26    160    171    3   560 - 660        0%       0%     (bars)
+2025-07-17    214    236    4   565 - 690        0%       0%     (bars)
+2025-08-06    253    258    5   569 - 690        0%       0%     (bars)
+2025-08-26    193    170    4   580 - 705        0%       0%     (bars)
+2025-09-16    263    261    4   595 - 725        0%       0%     (bars)
+2025-10-06    289    296    5   609 - 740        0%       0%     (bars)
+2025-10-24    338    342    5   609 - 740        0%       0%     (bars)
+2025-11-13    295    270    4   605 - 737        0%       0%     (bars)
+2025-12-04    257    257    4   615 - 750        0%       0%     (bars)
+2025-12-24    261    277    5   625 - 755        0%       0%     (bars)
+2026-01-15    250    294    4   627 - 755        0%       0%     (bars)
+2026-02-05    227    203    3   610 - 745        0%       0%     (bars)
+2026-02-18    675    675    7   584 - 785       95%      94%     (live)
+
+
+================================================================================
+3. RND SYSTEM TEST RESULTS
+================================================================================
+
+Breeden-Litzenberger (BL) success rate:  30 / 38 = 79%
+Lognormal IV fallback rate:               8 / 38 = 21%
+
+BL interior strikes: min=15  median=60  max=116
+ATM IV range:        0.07 to 0.46  (captures real vol regimes)
+DTE range:           7 to 21 days  (within target band)
+
+Notable IV spikes:
+  2025-04-04:  IV = 0.46  (likely a volatility event)
+  2024-08-02:  IV = 0.20  (summer vol pickup)
+  2026-02-18:  IV = 0.17  (current level)
+
+BL Failure Modes (8/38 dates):
+  - Dates: 2024-02-22, 2024-05-13, 2025-01-14, 2025-03-17, 2025-06-26,
+           2025-07-17, 2025-08-06, 2025-11-13
+  - Cause: mean(S_T) from BL too far from spot (>tol)
+  - These dates have fewer strikes near ATM or noisy closing prices
+  - Lognormal fallback uses BS-inverted IV → still produces valid forecasts
+
+
+================================================================================
+4. KEY OBSERVATIONS FOR EXPERIMENT DESIGN
+================================================================================
+
+A) The data supports 39 rebalance periods over ~2 years (Feb 2024 - Feb 2026).
+   At 14-day periods this is a reasonable backtest window.
+
+B) BL works on 79% of dates — the Alpaca closing prices are dramatically
+   cleaner than yfinance's stale lastPrice data.
+
+C) The historical chains have no live bid/ask — mid prices come from daily
+   bar closing prices.  This means:
+   - Spreads are not observable → we use closing price as the "fair" price
+   - IV is derived via BS inversion from the closing price
+   - This is equivalent to using settlement prices, which is standard for
+     end-of-day option analysis
+
+D) Strike coverage spans ATM ±10% (design parameter).  For wider coverage:
+   - Increase OPTION_ATM_STRIKE_PCT in config.py
+   - This adds more API calls (~proportional to range)
+
+E) Expiry coverage: 3-7 expiries per date, targeting 7-21 DTE.
+   SPY weekly expiries (Mon/Wed/Fri) provide good DTE granularity.
+
+F) For shorter trading periods (e.g., 7 days instead of 14):
+   - Set TARGET_IDEAL_DTE = 7 in config.py
+   - Re-run pipeline to get chain snapshots every 7 trading days
+   - This doubles the number of periods (~78) and the API load
+   - The existing chain data can be reused since it already covers
+     expiries as short as 7 DTE
+
+G) For longer periods (e.g., monthly):
+   - Set TARGET_IDEAL_DTE = 21-30
+   - Widen TARGET_MAX_DTE accordingly
+   - Fewer periods (~24) but potentially cleaner BL densities
+     (more time for prices to be informative)

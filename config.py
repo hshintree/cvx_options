@@ -15,7 +15,7 @@ PROCESSED_DIR = DATA_DIR / "processed"
 SPY_DAILY_FILE = RAW_DIR / "spy_daily.parquet"
 CASH_RATE_FILE = RAW_DIR / "cash_rate_daily.parquet"
 OPTION_CHAINS_DIR = RAW_DIR / "option_chains"  # one parquet per date
-OPTION_CONTRACTS_DIR = RAW_DIR / "option_contracts"  # one parquet per contract symbol (or combined)
+OPTION_CONTRACTS_DIR = RAW_DIR / "option_contracts"  # unused with Alpaca pipeline
 
 # Processed outputs (for cvxportfolio / backtest)
 RETURNS_FILE = PROCESSED_DIR / "returns.parquet"
@@ -27,47 +27,134 @@ CALENDAR_FILE = PROCESSED_DIR / "trading_calendar.parquet"
 # Symbols and data range
 # -----------------------------------------------------------------------------
 UNDERLYING = "SPY"
-CASH_SYMBOL = "USDOLLAR"  # for display; we use risk-free rate series
+CASH_SYMBOL = "USDOLLAR"
 
-# Default date range for initial full pull (SPY can go back further; options depend on contract history)
-DEFAULT_START_DATE = "2015-01-01"  # adjust as needed; options history may be shorter
+# SPY equity bars: Alpaca has data going back many years
+DEFAULT_START_DATE = "2020-01-01"
 DEFAULT_END_DATE = None  # None = today
 
-# -----------------------------------------------------------------------------
-# Options selection (for building representative call/put series)
-# -----------------------------------------------------------------------------
-# Number of expirations to fetch history for (from front month)
-OPTION_EXPIRATIONS_TO_FETCH = 4
-# Strike range: fetch contracts with strike within ± this percent of ATM
-OPTION_ATM_STRIKE_PCT = 0.10  # e.g. 0.10 = 10% around ATM
-# Max number of contracts per expiry per type (call/put) to fetch history for (to limit API load)
-OPTION_MAX_CONTRACTS_PER_EXPIRY = 15
+# Historical option bars are only available since ~Feb 2024 on Alpaca
+OPTION_DATA_START = "2024-02-01"
 
-# Historical backfill: one ATM call + one ATM put per month (third Friday).
-# Yahoo often 404s for expired options. Default is OFF; use --historical-options to enable.
-OPTION_HISTORICAL_MONTHLY = False
-OPTION_HISTORICAL_MAX_MONTHS_BACK = 24  # when enabled, only expiries in last 24 months
+# Strike range for chain reconstruction: ATM ± this percent
+OPTION_ATM_STRIKE_PCT = 0.10
 
 # -----------------------------------------------------------------------------
 # RND / forecasts
 # -----------------------------------------------------------------------------
-# Rebalancing: hold options to expiry (rebalance period = DTE).
-# Set to None to match the chosen expiry (hold-to-expiry and roll).
-# Set to an integer (e.g. 7) to rebalance mid-life via horizon repricing.
-REBALANCE_DAYS = None
+# Rebalancing: REBALANCE_DAYS controls horizon repricing in forecasts/scenarios
+# when used standalone. Backtest uses realized holding_days from chain_dates
+# (chain_dates[t+1] - chain_dates[t]) for r_period, equity prior scaling, and Sharpe.
+# Set to None for hold-to-expiry (binary returns).
+REBALANCE_DAYS = 7
 
-# DTE targeting: pick options in this DTE band
-TARGET_MIN_DTE = 7    # expiry must be > chain_date + this many days
-TARGET_MAX_DTE = 21   # expiry must be < chain_date + this many days
-TARGET_IDEAL_DTE = 14 # prefer expiry closest to this DTE
+# DTE targeting: pick options with substantially more time than REBALANCE_DAYS
+# so they retain time-value at rebalance (continuous, non-binary payoffs).
+# At rebalance, options will have ~30 days remaining → smooth BS repricing.
+TARGET_MIN_DTE = 35
+TARGET_MAX_DTE = 75
+TARGET_IDEAL_DTE = 50
 
 # Quote quality (avoid penny options and bad quotes)
-MIN_OPTION_MID = 0.05  # drop options with mid < this (avoid tiny denominator)
-MAX_BID_ASK_SPREAD_PCT = 0.50  # drop if (ask-bid)/mid > this
-MIN_BL_STRIKES = 10  # minimum interior strikes for Breeden-Litzenberger density
-OPTION_RETURN_WINSORIZE_PCT = (1.0, 99.0)  # winsorize at these percentiles (no fixed cap)
-MU_CLIP_SPY = (-0.10, 0.10)  # plausible weekly SPY expected return
-MU_CLIP_OPTION = (-0.30, 0.30)  # plausible weekly option expected return (avoid 200%)
+MIN_OPTION_MID = 0.10  # drop options with mid < this (avoid tiny denominator)
+MAX_BID_ASK_SPREAD_PCT = 0.35  # drop if (ask-bid)/mid > this
+MIN_BL_STRIKES = 25  # minimum interior strikes for Breeden-Litzenberger density
+OPTION_RETURN_WINSORIZE_PCT = (0.5, 99.5)  # winsorize at these percentiles (no fixed cap)
+MU_CLIP_SPY = (-0.05, 0.05)  # plausible biweekly SPY expected return
+MU_CLIP_OPTION = (-0.30, 0.30)  # option mu can be large due to ~20x leverage
+# Steadier equity mu (Markowitz): clip per-period, anchor + stronger shrink
+MU_CLIP_EQUITY = (-0.03, 0.03)  # per-period (consistent with REBALANCE_DAYS)
+EQUITY_PREMIUM_ANNUAL_ANCHOR = 0.04  # prior for equity sleeve (None = use 0.04 fallback)
+MU_SHRINKAGE_EQUITY = 0.75  # stronger shrink for equity toward anchored prior
+
+# -----------------------------------------------------------------------------
+# IEWMA covariance predictor  (from Johansson et al. 2023)
+# Each tuple is (H_vol, H_cor) in rebalance-period units
+# -----------------------------------------------------------------------------
+IEWMA_HALFLIFE_PAIRS = [
+    (2.0, 5.0),    # fast:   ~1 month vol, ~2.5 month cor
+    (4.0, 10.0),   # medium: ~2 month vol, ~5 month cor
+    (8.0, 20.0),   # slow:   ~4 month vol, ~10 month cor
+]
+IEWMA_LOOKBACK = 12  # trailing periods for CM-IEWMA log-likelihood scoring
+
+# Blend weight for IEWMA vs RND covariance:
+#   Σ_final = (1 - SIGMA_IEWMA_WEIGHT) * Σ_rnd + SIGMA_IEWMA_WEIGHT * Σ_iewma
+SIGMA_IEWMA_WEIGHT = .7
+# CM-IEWMA combiner: blend of RND with IEWMA expert mix
+#   Σ_final = (1 - RND_BLEND_WEIGHT) * Σ_iewma_cm + RND_BLEND_WEIGHT * Σ_rnd
+RND_BLEND_WEIGHT = 0.3
+CMIEWMA_TEMPERATURE = 1.0  # softmax temperature for expert weights
+
+# -----------------------------------------------------------------------------
+# Robust optimization  (from Markowitz Model with Uncertainties, MVO_70)
+# Worst-case return:  R_wc = μ'w − ρ'|w|  (long-only: (μ−ρ)'w)
+# ρ is per-period: rho_period = MU_UNCERTAINTY_ANNUAL * (REBALANCE_DAYS/252)
+# Worst-case risk:    σ²_wc = w'(Σ + κ·diag(Σ))w  (adds diagonal uncertainty)
+# -----------------------------------------------------------------------------
+MU_UNCERTAINTY = 0.01   # deprecated: use MU_UNCERTAINTY_ANNUAL
+MU_UNCERTAINTY_ANNUAL = 0.04   # ρ annual; rho_period = this * (REBALANCE_DAYS/252)
+# Per-asset ρ multipliers (equity 1x, options 3x). Length 3: [equity, call, put] per sleeve.
+MU_UNCERTAINTY_MULTIPLIERS = (1.0, 3.0, 3.0)
+COV_UNCERTAINTY = 0.10   # κ: fractional uncertainty on covariance diagonal
+
+# -----------------------------------------------------------------------------
+# Delta-equivalent Sigma (Fast Direction A)
+# Normalize option risk to SPY-equivalent units so the Markowitz optimizer
+# sees options as delta-scaled SPY exposure plus a small idiosyncratic floor.
+# Set False for tests to avoid cash dominance from delta-scaled option vol.
+# -----------------------------------------------------------------------------
+USE_DELTA_EQUIV_SIGMA = False  # True = patch Sigma; False for this test
+IDIO_FRAC = 0.10               # idiosyncratic variance for options = idio_frac * Sigma_spy_spy
+
+# -----------------------------------------------------------------------------
+# Scenario-based optimizer (C+E)
+# When OPTIMIZER_MODE = "scenario", the backtest uses a CVaR-based optimizer
+# that works directly on the (N, 4) return matrix from MC scenarios instead
+# of collapsing to (mu, Sigma).  Delta-equiv Sigma is ignored in this mode.
+# -----------------------------------------------------------------------------
+OPTIMIZER_MODE = "scenario"    # "markowitz" | "scenario"
+SCENARIO_N_SAMPLES = 20_000    # MC paths per rebalance period (CVaR stabilizes with more)
+CVAR_ALPHA = 0.95              # tail probability for CVaR (worst 5%)
+CVAR_LAMBDA = 0.25             # alias for relative CVaR penalty
+CVAR_LAMBDA_REL = 0.05         # small: prevents pure-cash but doesn't penalize put carry too much
+CVAR_LAMBDA_ABS = 0.30         # primary lever: makes absolute tail-risk reduction (puts) worthwhile
+SCENARIO_MIN_CASH_WEIGHT = 0.0 # cash floor for scenario mode (0 = let optimizer choose)
+# Scenario option-return winsorization. CVaR needs tails; None disables.
+# Do NOT cap the right tail (puts/calls paying in crash) or protection is removed.
+SCENARIO_WINSORIZE_PCT = None  # (low_pct, high_pct) or None
+# Skew dynamics: IV bumps when spot falls (vol points per 100% down move).
+# Only applies when down_move exceeds threshold (not constantly taxing calls).
+# Use 2.0-3.0 for meaningful protection; beta=2 -> +0.10 vol for -5% move.
+SCENARIO_SKEW_BETA = 2.5
+SCENARIO_SKEW_THRESHOLD = 0.01  # ignore first 1% down move
+# Physical measure: equity premium for SPY scenarios (annualized).
+# If None, estimate from rolling returns; else use this constant premium.
+SCENARIO_EQUITY_PREMIUM_ANNUAL = None  # None = estimate from history, or e.g. 0.04
+# Max combined option weight in scenario mode (call + put together).
+# 8% allows hedges big enough to matter; set to 0.10 for more aggressive.
+SCENARIO_MAX_OPTION_WEIGHT = 0.12  # room for meaningful hedges; 0.15 for more aggressive
+# Put spread: long ATM put, short OTM put at (1 - width) * spot. Wider = cheaper.
+SCENARIO_PUT_SPREAD_WIDTH = 0.12  # 12% wide spread (cheaper than 0.08)
+# Minimum put weight when tactical puts are on (dynamic hedge floor).
+SCENARIO_HEDGE_FLOOR = 0.00  # was 0.005; 1% min so hedges can matter
+
+# Tactical puts: only buy protection when IV is cheap or momentum signals danger.
+# If False, always allow max_option_weight in puts (subject to combined cap).
+SCENARIO_TACTICAL_PUTS = True
+# IV cheap threshold: buy puts when ATM IV percentile < this (vs rolling window).
+SCENARIO_TACTICAL_IV_PCTILE = 0.40  # bottom 40th percentile = cheap
+SCENARIO_TACTICAL_IV_LOOKBACK = 20  # periods for IV percentile calculation
+# Momentum danger: buy puts when recent SPY return < threshold (negative momentum).
+SCENARIO_TACTICAL_MOMENTUM_THRESHOLD = -0.02  # -2% over lookback window
+SCENARIO_TACTICAL_MOMENTUM_LOOKBACK = 3  # periods for momentum calculation
+
+# -----------------------------------------------------------------------------
+# Transparency / diagnostics (after cold start)
+# -----------------------------------------------------------------------------
+PRINT_DIAGNOSTICS = True
+PRINT_EVERY = 5
+PRINT_START_PERIOD = 8  # match MIN_PERIODS_FOR_ROLL; do not print first N periods
 
 # -----------------------------------------------------------------------------
 # Ensure directories exist
