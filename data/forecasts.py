@@ -684,6 +684,39 @@ def _bs_put_vec(S: np.ndarray, K: float, r: float, T: float, sigma: float) -> np
 
 
 # ---------------------------------------------------------------------------
+# Black-Scholes Greeks (for delta-gamma variance model, Zhao & Palomar 2018)
+# ---------------------------------------------------------------------------
+
+def _bs_delta(S: float, K: float, r: float, T: float, sigma: float, is_call: bool) -> float:
+    """Delta: ∂V/∂S. Call: N(d1); Put: N(d1) - 1."""
+    if T <= 0:
+        return 1.0 if (is_call and S > K) or (not is_call and S < K) else 0.0
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    return float(norm.cdf(d1) if is_call else norm.cdf(d1) - 1.0)
+
+
+def _bs_gamma(S: float, K: float, r: float, T: float, sigma: float) -> float:
+    """Gamma: ∂²V/∂S². Same for call and put."""
+    if T <= 0 or sigma <= 0 or S <= 0:
+        return 0.0
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    return float(norm.pdf(d1) / (S * sigma * np.sqrt(T)))
+
+
+def _bs_theta(S: float, K: float, r: float, T: float, sigma: float, is_call: bool) -> float:
+    """Theta: ∂V/∂t (per year). Negative = time decay."""
+    if T <= 0:
+        return 0.0
+    sqrtT = np.sqrt(T)
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrtT)
+    d2 = d1 - sigma * sqrtT
+    term1 = -S * norm.pdf(d1) * sigma / (2 * sqrtT)
+    if is_call:
+        return float(term1 - r * K * np.exp(-r * T) * norm.cdf(d2))
+    return float(term1 + r * K * np.exp(-r * T) * norm.cdf(-d2))
+
+
+# ---------------------------------------------------------------------------
 # Fallback covariance (instead of identity)
 # ---------------------------------------------------------------------------
 
