@@ -25,13 +25,26 @@ SP100_CONSTITUENTS_2025_09_22: List[str] = [
     "XOM",
 ]
 
+LIQUID_OPTION_TICKERS_2026_02: List[str] = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "META",
+    "TSLA", "AMD", "GOOGL", "JPM", "BAC",
+    "XOM", "AVGO", "QCOM", "NFLX", "PLTR",
+    "UBER", "INTC", "PYPL", "WMT", "BA",
+]
+
 
 def sp100_plus_spy() -> List[str]:
     """Return the frozen research basket: SPY plus the S&P 100 members."""
     return ["SPY", *SP100_CONSTITUENTS_2025_09_22]
 
 
+def liquid_research_plus_spy() -> List[str]:
+    """Return a smaller, more liquid basket for intraday snapshot research."""
+    return ["SPY", *LIQUID_OPTION_TICKERS_2026_02]
+
+
 UNIVERSE_BUILDERS = {
+    "liquid_research_plus_spy": liquid_research_plus_spy,
     "sp100_plus_spy": sp100_plus_spy,
 }
 

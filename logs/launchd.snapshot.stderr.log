@@ -1,0 +1,2183 @@
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+INFO: Fetched LOW option chain: 112 contracts
+INFO: Saved LOW chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched MA option chain: 310 contracts
+INFO: Saved MA chain 2026-02-27: 155 calls, 155 puts
+INFO: Fetched MCD option chain: 200 contracts
+INFO: Saved MCD chain 2026-02-27: 100 calls, 100 puts
+INFO: Fetched MDLZ option chain: 122 contracts
+INFO: Saved MDLZ chain 2026-02-27: 61 calls, 61 puts
+INFO: Fetched MDT option chain: 198 contracts
+INFO: Saved MDT chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched MET option chain: 36 contracts
+INFO: Saved MET chain 2026-02-27: 18 calls, 18 puts
+INFO: Fetched META option chain: 400 contracts
+INFO: Saved META chain 2026-02-27: 200 calls, 200 puts
+INFO: Fetched MMM option chain: 100 contracts
+INFO: Saved MMM chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MO option chain: 152 contracts
+INFO: Saved MO chain 2026-02-27: 76 calls, 76 puts
+INFO: Fetched MRK option chain: 224 contracts
+INFO: Saved MRK chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched MS option chain: 100 contracts
+INFO: Saved MS chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MSFT option chain: 240 contracts
+INFO: Saved MSFT chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched NEE option chain: 178 contracts
+INFO: Saved NEE chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched NFLX option chain: 228 contracts
+INFO: Saved NFLX chain 2026-02-27: 114 calls, 114 puts
+INFO: Fetched NKE option chain: 146 contracts
+INFO: Saved NKE chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched NOW option chain: 102 contracts
+INFO: Saved NOW chain 2026-02-27: 51 calls, 51 puts
+INFO: Fetched NVDA option chain: 106 contracts
+INFO: Saved NVDA chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ORCL option chain: 90 contracts
+INFO: Saved ORCL chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched PEP option chain: 154 contracts
+INFO: Saved PEP chain 2026-02-27: 77 calls, 77 puts
+INFO: Fetched PFE option chain: 128 contracts
+INFO: Saved PFE chain 2026-02-27: 64 calls, 64 puts
+INFO: Fetched PG option chain: 168 contracts
+INFO: Saved PG chain 2026-02-27: 84 calls, 84 puts
+INFO: Fetched PLTR option chain: 80 contracts
+INFO: Saved PLTR chain 2026-02-27: 40 calls, 40 puts
+INFO: Fetched PM option chain: 112 contracts
+INFO: Saved PM chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched PYPL option chain: 104 contracts
+INFO: Saved PYPL chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched QCOM option chain: 90 contracts
+INFO: Saved QCOM chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched RTX option chain: 108 contracts
+INFO: Saved RTX chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched SBUX option chain: 190 contracts
+INFO: Saved SBUX chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched SCHW option chain: 204 contracts
+INFO: Saved SCHW chain 2026-02-27: 102 calls, 102 puts
+INFO: Fetched SO option chain: 198 contracts
+INFO: Saved SO chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched SPG option chain: 18 contracts
+INFO: Saved SPG chain 2026-02-27: 9 calls, 9 puts
+INFO: Fetched T option chain: 134 contracts
+INFO: Saved T chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched TGT option chain: 218 contracts
+INFO: Saved TGT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched TMO option chain: 120 contracts
+INFO: Saved TMO chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched TMUS option chain: 110 contracts
+INFO: Saved TMUS chain 2026-02-27: 55 calls, 55 puts
+INFO: Fetched TSLA option chain: 240 contracts
+INFO: Saved TSLA chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched TXN option chain: 104 contracts
+INFO: Saved TXN chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched UBER option chain: 170 contracts
+INFO: Saved UBER chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched UNH option chain: 134 contracts
+INFO: Saved UNH chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched UNP option chain: 160 contracts
+INFO: Saved UNP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched UPS option chain: 226 contracts
+INFO: Saved UPS chain 2026-02-27: 113 calls, 113 puts
+INFO: Fetched USB option chain: 130 contracts
+INFO: Saved USB chain 2026-02-27: 65 calls, 65 puts
+INFO: Fetched V option chain: 190 contracts
+INFO: Saved V chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched VZ option chain: 134 contracts
+INFO: Saved VZ chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched WFC option chain: 190 contracts
+INFO: Saved WFC chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched WMT option chain: 220 contracts
+INFO: Saved WMT chain 2026-02-27: 110 calls, 110 puts
+INFO: Fetched XOM option chain: 194 contracts
+INFO: Saved XOM chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+INFO: Fetched LOW option chain: 112 contracts
+INFO: Saved LOW chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched MA option chain: 310 contracts
+INFO: Saved MA chain 2026-02-27: 155 calls, 155 puts
+INFO: Fetched MCD option chain: 200 contracts
+INFO: Saved MCD chain 2026-02-27: 100 calls, 100 puts
+INFO: Fetched MDLZ option chain: 122 contracts
+INFO: Saved MDLZ chain 2026-02-27: 61 calls, 61 puts
+INFO: Fetched MDT option chain: 198 contracts
+INFO: Saved MDT chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched MET option chain: 36 contracts
+INFO: Saved MET chain 2026-02-27: 18 calls, 18 puts
+INFO: Fetched META option chain: 400 contracts
+INFO: Saved META chain 2026-02-27: 200 calls, 200 puts
+INFO: Fetched MMM option chain: 100 contracts
+INFO: Saved MMM chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MO option chain: 152 contracts
+INFO: Saved MO chain 2026-02-27: 76 calls, 76 puts
+INFO: Fetched MRK option chain: 224 contracts
+INFO: Saved MRK chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched MS option chain: 100 contracts
+INFO: Saved MS chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MSFT option chain: 240 contracts
+INFO: Saved MSFT chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched NEE option chain: 178 contracts
+INFO: Saved NEE chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched NFLX option chain: 228 contracts
+INFO: Saved NFLX chain 2026-02-27: 114 calls, 114 puts
+INFO: Fetched NKE option chain: 146 contracts
+INFO: Saved NKE chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched NOW option chain: 102 contracts
+INFO: Saved NOW chain 2026-02-27: 51 calls, 51 puts
+INFO: Fetched NVDA option chain: 106 contracts
+INFO: Saved NVDA chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ORCL option chain: 90 contracts
+INFO: Saved ORCL chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched PEP option chain: 154 contracts
+INFO: Saved PEP chain 2026-02-27: 77 calls, 77 puts
+INFO: Fetched PFE option chain: 128 contracts
+INFO: Saved PFE chain 2026-02-27: 64 calls, 64 puts
+INFO: Fetched PG option chain: 168 contracts
+INFO: Saved PG chain 2026-02-27: 84 calls, 84 puts
+INFO: Fetched PLTR option chain: 80 contracts
+INFO: Saved PLTR chain 2026-02-27: 40 calls, 40 puts
+INFO: Fetched PM option chain: 112 contracts
+INFO: Saved PM chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched PYPL option chain: 104 contracts
+INFO: Saved PYPL chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched QCOM option chain: 90 contracts
+INFO: Saved QCOM chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched RTX option chain: 108 contracts
+INFO: Saved RTX chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched SBUX option chain: 190 contracts
+INFO: Saved SBUX chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched SCHW option chain: 204 contracts
+INFO: Saved SCHW chain 2026-02-27: 102 calls, 102 puts
+INFO: Fetched SO option chain: 198 contracts
+INFO: Saved SO chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched SPG option chain: 18 contracts
+INFO: Saved SPG chain 2026-02-27: 9 calls, 9 puts
+INFO: Fetched T option chain: 134 contracts
+INFO: Saved T chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched TGT option chain: 218 contracts
+INFO: Saved TGT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched TMO option chain: 120 contracts
+INFO: Saved TMO chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched TMUS option chain: 110 contracts
+INFO: Saved TMUS chain 2026-02-27: 55 calls, 55 puts
+INFO: Fetched TSLA option chain: 240 contracts
+INFO: Saved TSLA chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched TXN option chain: 104 contracts
+INFO: Saved TXN chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched UBER option chain: 170 contracts
+INFO: Saved UBER chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched UNH option chain: 134 contracts
+INFO: Saved UNH chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched UNP option chain: 160 contracts
+INFO: Saved UNP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched UPS option chain: 226 contracts
+INFO: Saved UPS chain 2026-02-27: 113 calls, 113 puts
+INFO: Fetched USB option chain: 130 contracts
+INFO: Saved USB chain 2026-02-27: 65 calls, 65 puts
+INFO: Fetched V option chain: 190 contracts
+INFO: Saved V chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched VZ option chain: 134 contracts
+INFO: Saved VZ chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched WFC option chain: 190 contracts
+INFO: Saved WFC chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched WMT option chain: 220 contracts
+INFO: Saved WMT chain 2026-02-27: 110 calls, 110 puts
+INFO: Fetched XOM option chain: 194 contracts
+INFO: Saved XOM chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+INFO: Fetched LOW option chain: 112 contracts
+INFO: Saved LOW chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched MA option chain: 310 contracts
+INFO: Saved MA chain 2026-02-27: 155 calls, 155 puts
+INFO: Fetched MCD option chain: 200 contracts
+INFO: Saved MCD chain 2026-02-27: 100 calls, 100 puts
+INFO: Fetched MDLZ option chain: 122 contracts
+INFO: Saved MDLZ chain 2026-02-27: 61 calls, 61 puts
+INFO: Fetched MDT option chain: 198 contracts
+INFO: Saved MDT chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched MET option chain: 36 contracts
+INFO: Saved MET chain 2026-02-27: 18 calls, 18 puts
+INFO: Fetched META option chain: 400 contracts
+INFO: Saved META chain 2026-02-27: 200 calls, 200 puts
+INFO: Fetched MMM option chain: 100 contracts
+INFO: Saved MMM chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MO option chain: 152 contracts
+INFO: Saved MO chain 2026-02-27: 76 calls, 76 puts
+INFO: Fetched MRK option chain: 224 contracts
+INFO: Saved MRK chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched MS option chain: 100 contracts
+INFO: Saved MS chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MSFT option chain: 240 contracts
+INFO: Saved MSFT chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched NEE option chain: 178 contracts
+INFO: Saved NEE chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched NFLX option chain: 228 contracts
+INFO: Saved NFLX chain 2026-02-27: 114 calls, 114 puts
+INFO: Fetched NKE option chain: 146 contracts
+INFO: Saved NKE chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched NOW option chain: 102 contracts
+INFO: Saved NOW chain 2026-02-27: 51 calls, 51 puts
+INFO: Fetched NVDA option chain: 106 contracts
+INFO: Saved NVDA chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ORCL option chain: 90 contracts
+INFO: Saved ORCL chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched PEP option chain: 154 contracts
+INFO: Saved PEP chain 2026-02-27: 77 calls, 77 puts
+INFO: Fetched PFE option chain: 128 contracts
+INFO: Saved PFE chain 2026-02-27: 64 calls, 64 puts
+INFO: Fetched PG option chain: 168 contracts
+INFO: Saved PG chain 2026-02-27: 84 calls, 84 puts
+INFO: Fetched PLTR option chain: 80 contracts
+INFO: Saved PLTR chain 2026-02-27: 40 calls, 40 puts
+INFO: Fetched PM option chain: 112 contracts
+INFO: Saved PM chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched PYPL option chain: 104 contracts
+INFO: Saved PYPL chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched QCOM option chain: 90 contracts
+INFO: Saved QCOM chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched RTX option chain: 108 contracts
+INFO: Saved RTX chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched SBUX option chain: 190 contracts
+INFO: Saved SBUX chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched SCHW option chain: 204 contracts
+INFO: Saved SCHW chain 2026-02-27: 102 calls, 102 puts
+INFO: Fetched SO option chain: 198 contracts
+INFO: Saved SO chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched SPG option chain: 18 contracts
+INFO: Saved SPG chain 2026-02-27: 9 calls, 9 puts
+INFO: Fetched T option chain: 134 contracts
+INFO: Saved T chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched TGT option chain: 218 contracts
+INFO: Saved TGT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched TMO option chain: 120 contracts
+INFO: Saved TMO chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched TMUS option chain: 110 contracts
+INFO: Saved TMUS chain 2026-02-27: 55 calls, 55 puts
+INFO: Fetched TSLA option chain: 240 contracts
+INFO: Saved TSLA chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched TXN option chain: 104 contracts
+INFO: Saved TXN chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched UBER option chain: 170 contracts
+INFO: Saved UBER chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched UNH option chain: 134 contracts
+INFO: Saved UNH chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched UNP option chain: 160 contracts
+INFO: Saved UNP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched UPS option chain: 226 contracts
+INFO: Saved UPS chain 2026-02-27: 113 calls, 113 puts
+INFO: Fetched USB option chain: 130 contracts
+INFO: Saved USB chain 2026-02-27: 65 calls, 65 puts
+INFO: Fetched V option chain: 190 contracts
+INFO: Saved V chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched VZ option chain: 134 contracts
+INFO: Saved VZ chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched WFC option chain: 190 contracts
+INFO: Saved WFC chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched WMT option chain: 220 contracts
+INFO: Saved WMT chain 2026-02-27: 110 calls, 110 puts
+INFO: Fetched XOM option chain: 194 contracts
+INFO: Saved XOM chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+INFO: Fetched LOW option chain: 112 contracts
+INFO: Saved LOW chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched MA option chain: 310 contracts
+INFO: Saved MA chain 2026-02-27: 155 calls, 155 puts
+INFO: Fetched MCD option chain: 200 contracts
+INFO: Saved MCD chain 2026-02-27: 100 calls, 100 puts
+INFO: Fetched MDLZ option chain: 122 contracts
+INFO: Saved MDLZ chain 2026-02-27: 61 calls, 61 puts
+INFO: Fetched MDT option chain: 198 contracts
+INFO: Saved MDT chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched MET option chain: 36 contracts
+INFO: Saved MET chain 2026-02-27: 18 calls, 18 puts
+INFO: Fetched META option chain: 400 contracts
+INFO: Saved META chain 2026-02-27: 200 calls, 200 puts
+INFO: Fetched MMM option chain: 100 contracts
+INFO: Saved MMM chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MO option chain: 152 contracts
+INFO: Saved MO chain 2026-02-27: 76 calls, 76 puts
+INFO: Fetched MRK option chain: 224 contracts
+INFO: Saved MRK chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched MS option chain: 100 contracts
+INFO: Saved MS chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MSFT option chain: 240 contracts
+INFO: Saved MSFT chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched NEE option chain: 178 contracts
+INFO: Saved NEE chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched NFLX option chain: 228 contracts
+INFO: Saved NFLX chain 2026-02-27: 114 calls, 114 puts
+INFO: Fetched NKE option chain: 146 contracts
+INFO: Saved NKE chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched NOW option chain: 102 contracts
+INFO: Saved NOW chain 2026-02-27: 51 calls, 51 puts
+INFO: Fetched NVDA option chain: 106 contracts
+INFO: Saved NVDA chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ORCL option chain: 90 contracts
+INFO: Saved ORCL chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched PEP option chain: 154 contracts
+INFO: Saved PEP chain 2026-02-27: 77 calls, 77 puts
+INFO: Fetched PFE option chain: 128 contracts
+INFO: Saved PFE chain 2026-02-27: 64 calls, 64 puts
+INFO: Fetched PG option chain: 168 contracts
+INFO: Saved PG chain 2026-02-27: 84 calls, 84 puts
+INFO: Fetched PLTR option chain: 80 contracts
+INFO: Saved PLTR chain 2026-02-27: 40 calls, 40 puts
+INFO: Fetched PM option chain: 112 contracts
+INFO: Saved PM chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched PYPL option chain: 104 contracts
+INFO: Saved PYPL chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched QCOM option chain: 90 contracts
+INFO: Saved QCOM chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched RTX option chain: 108 contracts
+INFO: Saved RTX chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched SBUX option chain: 190 contracts
+INFO: Saved SBUX chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched SCHW option chain: 204 contracts
+INFO: Saved SCHW chain 2026-02-27: 102 calls, 102 puts
+INFO: Fetched SO option chain: 198 contracts
+INFO: Saved SO chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched SPG option chain: 18 contracts
+INFO: Saved SPG chain 2026-02-27: 9 calls, 9 puts
+INFO: Fetched T option chain: 134 contracts
+INFO: Saved T chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched TGT option chain: 218 contracts
+INFO: Saved TGT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched TMO option chain: 120 contracts
+INFO: Saved TMO chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched TMUS option chain: 110 contracts
+INFO: Saved TMUS chain 2026-02-27: 55 calls, 55 puts
+INFO: Fetched TSLA option chain: 240 contracts
+INFO: Saved TSLA chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched TXN option chain: 104 contracts
+INFO: Saved TXN chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched UBER option chain: 170 contracts
+INFO: Saved UBER chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched UNH option chain: 134 contracts
+INFO: Saved UNH chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched UNP option chain: 160 contracts
+INFO: Saved UNP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched UPS option chain: 226 contracts
+INFO: Saved UPS chain 2026-02-27: 113 calls, 113 puts
+INFO: Fetched USB option chain: 130 contracts
+INFO: Saved USB chain 2026-02-27: 65 calls, 65 puts
+INFO: Fetched V option chain: 190 contracts
+INFO: Saved V chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched VZ option chain: 134 contracts
+INFO: Saved VZ chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched WFC option chain: 190 contracts
+INFO: Saved WFC chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched WMT option chain: 220 contracts
+INFO: Saved WMT chain 2026-02-27: 110 calls, 110 puts
+INFO: Fetched XOM option chain: 194 contracts
+INFO: Saved XOM chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+INFO: Fetched LOW option chain: 112 contracts
+INFO: Saved LOW chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched MA option chain: 310 contracts
+INFO: Saved MA chain 2026-02-27: 155 calls, 155 puts
+INFO: Fetched MCD option chain: 200 contracts
+INFO: Saved MCD chain 2026-02-27: 100 calls, 100 puts
+INFO: Fetched MDLZ option chain: 122 contracts
+INFO: Saved MDLZ chain 2026-02-27: 61 calls, 61 puts
+INFO: Fetched MDT option chain: 198 contracts
+INFO: Saved MDT chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched MET option chain: 36 contracts
+INFO: Saved MET chain 2026-02-27: 18 calls, 18 puts
+INFO: Fetched META option chain: 400 contracts
+INFO: Saved META chain 2026-02-27: 200 calls, 200 puts
+INFO: Fetched MMM option chain: 100 contracts
+INFO: Saved MMM chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MO option chain: 152 contracts
+INFO: Saved MO chain 2026-02-27: 76 calls, 76 puts
+INFO: Fetched MRK option chain: 224 contracts
+INFO: Saved MRK chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched MS option chain: 100 contracts
+INFO: Saved MS chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MSFT option chain: 240 contracts
+INFO: Saved MSFT chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched NEE option chain: 178 contracts
+INFO: Saved NEE chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched NFLX option chain: 228 contracts
+INFO: Saved NFLX chain 2026-02-27: 114 calls, 114 puts
+INFO: Fetched NKE option chain: 146 contracts
+INFO: Saved NKE chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched NOW option chain: 102 contracts
+INFO: Saved NOW chain 2026-02-27: 51 calls, 51 puts
+INFO: Fetched NVDA option chain: 106 contracts
+INFO: Saved NVDA chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ORCL option chain: 90 contracts
+INFO: Saved ORCL chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched PEP option chain: 154 contracts
+INFO: Saved PEP chain 2026-02-27: 77 calls, 77 puts
+INFO: Fetched PFE option chain: 128 contracts
+INFO: Saved PFE chain 2026-02-27: 64 calls, 64 puts
+INFO: Fetched PG option chain: 168 contracts
+INFO: Saved PG chain 2026-02-27: 84 calls, 84 puts
+INFO: Fetched PLTR option chain: 80 contracts
+INFO: Saved PLTR chain 2026-02-27: 40 calls, 40 puts
+INFO: Fetched PM option chain: 112 contracts
+INFO: Saved PM chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched PYPL option chain: 104 contracts
+INFO: Saved PYPL chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched QCOM option chain: 90 contracts
+INFO: Saved QCOM chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched RTX option chain: 108 contracts
+INFO: Saved RTX chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched SBUX option chain: 190 contracts
+INFO: Saved SBUX chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched SCHW option chain: 204 contracts
+INFO: Saved SCHW chain 2026-02-27: 102 calls, 102 puts
+INFO: Fetched SO option chain: 198 contracts
+INFO: Saved SO chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched SPG option chain: 18 contracts
+INFO: Saved SPG chain 2026-02-27: 9 calls, 9 puts
+INFO: Fetched T option chain: 134 contracts
+INFO: Saved T chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched TGT option chain: 218 contracts
+INFO: Saved TGT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched TMO option chain: 120 contracts
+INFO: Saved TMO chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched TMUS option chain: 110 contracts
+INFO: Saved TMUS chain 2026-02-27: 55 calls, 55 puts
+INFO: Fetched TSLA option chain: 240 contracts
+INFO: Saved TSLA chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched TXN option chain: 104 contracts
+INFO: Saved TXN chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched UBER option chain: 170 contracts
+INFO: Saved UBER chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched UNH option chain: 134 contracts
+INFO: Saved UNH chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched UNP option chain: 160 contracts
+INFO: Saved UNP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched UPS option chain: 226 contracts
+INFO: Saved UPS chain 2026-02-27: 113 calls, 113 puts
+INFO: Fetched USB option chain: 130 contracts
+INFO: Saved USB chain 2026-02-27: 65 calls, 65 puts
+INFO: Fetched V option chain: 190 contracts
+INFO: Saved V chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched VZ option chain: 134 contracts
+INFO: Saved VZ chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched WFC option chain: 190 contracts
+INFO: Saved WFC chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched WMT option chain: 220 contracts
+INFO: Saved WMT chain 2026-02-27: 110 calls, 110 puts
+INFO: Fetched XOM option chain: 194 contracts
+INFO: Saved XOM chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+INFO: Fetched LOW option chain: 112 contracts
+INFO: Saved LOW chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched MA option chain: 310 contracts
+INFO: Saved MA chain 2026-02-27: 155 calls, 155 puts
+INFO: Fetched MCD option chain: 200 contracts
+INFO: Saved MCD chain 2026-02-27: 100 calls, 100 puts
+INFO: Fetched MDLZ option chain: 122 contracts
+INFO: Saved MDLZ chain 2026-02-27: 61 calls, 61 puts
+INFO: Fetched MDT option chain: 198 contracts
+INFO: Saved MDT chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched MET option chain: 36 contracts
+INFO: Saved MET chain 2026-02-27: 18 calls, 18 puts
+INFO: Fetched META option chain: 400 contracts
+INFO: Saved META chain 2026-02-27: 200 calls, 200 puts
+INFO: Fetched MMM option chain: 100 contracts
+INFO: Saved MMM chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MO option chain: 152 contracts
+INFO: Saved MO chain 2026-02-27: 76 calls, 76 puts
+INFO: Fetched MRK option chain: 224 contracts
+INFO: Saved MRK chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched MS option chain: 100 contracts
+INFO: Saved MS chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MSFT option chain: 240 contracts
+INFO: Saved MSFT chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched NEE option chain: 178 contracts
+INFO: Saved NEE chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched NFLX option chain: 228 contracts
+INFO: Saved NFLX chain 2026-02-27: 114 calls, 114 puts
+INFO: Fetched NKE option chain: 146 contracts
+INFO: Saved NKE chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched NOW option chain: 102 contracts
+INFO: Saved NOW chain 2026-02-27: 51 calls, 51 puts
+INFO: Fetched NVDA option chain: 106 contracts
+INFO: Saved NVDA chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ORCL option chain: 90 contracts
+INFO: Saved ORCL chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched PEP option chain: 154 contracts
+INFO: Saved PEP chain 2026-02-27: 77 calls, 77 puts
+INFO: Fetched PFE option chain: 128 contracts
+INFO: Saved PFE chain 2026-02-27: 64 calls, 64 puts
+INFO: Fetched PG option chain: 168 contracts
+INFO: Saved PG chain 2026-02-27: 84 calls, 84 puts
+INFO: Fetched PLTR option chain: 80 contracts
+INFO: Saved PLTR chain 2026-02-27: 40 calls, 40 puts
+INFO: Fetched PM option chain: 112 contracts
+INFO: Saved PM chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched PYPL option chain: 104 contracts
+INFO: Saved PYPL chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched QCOM option chain: 90 contracts
+INFO: Saved QCOM chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched RTX option chain: 108 contracts
+INFO: Saved RTX chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched SBUX option chain: 190 contracts
+INFO: Saved SBUX chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched SCHW option chain: 204 contracts
+INFO: Saved SCHW chain 2026-02-27: 102 calls, 102 puts
+INFO: Fetched SO option chain: 198 contracts
+INFO: Saved SO chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched SPG option chain: 18 contracts
+INFO: Saved SPG chain 2026-02-27: 9 calls, 9 puts
+INFO: Fetched T option chain: 134 contracts
+INFO: Saved T chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched TGT option chain: 218 contracts
+INFO: Saved TGT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched TMO option chain: 120 contracts
+INFO: Saved TMO chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched TMUS option chain: 110 contracts
+INFO: Saved TMUS chain 2026-02-27: 55 calls, 55 puts
+INFO: Fetched TSLA option chain: 240 contracts
+INFO: Saved TSLA chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched TXN option chain: 104 contracts
+INFO: Saved TXN chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched UBER option chain: 170 contracts
+INFO: Saved UBER chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched UNH option chain: 134 contracts
+INFO: Saved UNH chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched UNP option chain: 160 contracts
+INFO: Saved UNP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched UPS option chain: 226 contracts
+INFO: Saved UPS chain 2026-02-27: 113 calls, 113 puts
+INFO: Fetched USB option chain: 130 contracts
+INFO: Saved USB chain 2026-02-27: 65 calls, 65 puts
+INFO: Fetched V option chain: 190 contracts
+INFO: Saved V chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched VZ option chain: 134 contracts
+INFO: Saved VZ chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched WFC option chain: 190 contracts
+INFO: Saved WFC chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched WMT option chain: 220 contracts
+INFO: Saved WMT chain 2026-02-27: 110 calls, 110 puts
+INFO: Fetched XOM option chain: 194 contracts
+INFO: Saved XOM chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+INFO: Fetched LOW option chain: 112 contracts
+INFO: Saved LOW chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched MA option chain: 310 contracts
+INFO: Saved MA chain 2026-02-27: 155 calls, 155 puts
+INFO: Fetched MCD option chain: 200 contracts
+INFO: Saved MCD chain 2026-02-27: 100 calls, 100 puts
+INFO: Fetched MDLZ option chain: 122 contracts
+INFO: Saved MDLZ chain 2026-02-27: 61 calls, 61 puts
+INFO: Fetched MDT option chain: 198 contracts
+INFO: Saved MDT chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched MET option chain: 36 contracts
+INFO: Saved MET chain 2026-02-27: 18 calls, 18 puts
+INFO: Fetched META option chain: 400 contracts
+INFO: Saved META chain 2026-02-27: 200 calls, 200 puts
+INFO: Fetched MMM option chain: 100 contracts
+INFO: Saved MMM chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MO option chain: 152 contracts
+INFO: Saved MO chain 2026-02-27: 76 calls, 76 puts
+INFO: Fetched MRK option chain: 224 contracts
+INFO: Saved MRK chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched MS option chain: 100 contracts
+INFO: Saved MS chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MSFT option chain: 240 contracts
+INFO: Saved MSFT chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched NEE option chain: 178 contracts
+INFO: Saved NEE chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched NFLX option chain: 228 contracts
+INFO: Saved NFLX chain 2026-02-27: 114 calls, 114 puts
+INFO: Fetched NKE option chain: 146 contracts
+INFO: Saved NKE chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched NOW option chain: 102 contracts
+INFO: Saved NOW chain 2026-02-27: 51 calls, 51 puts
+INFO: Fetched NVDA option chain: 106 contracts
+INFO: Saved NVDA chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ORCL option chain: 90 contracts
+INFO: Saved ORCL chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched PEP option chain: 154 contracts
+INFO: Saved PEP chain 2026-02-27: 77 calls, 77 puts
+INFO: Fetched PFE option chain: 128 contracts
+INFO: Saved PFE chain 2026-02-27: 64 calls, 64 puts
+INFO: Fetched PG option chain: 168 contracts
+INFO: Saved PG chain 2026-02-27: 84 calls, 84 puts
+INFO: Fetched PLTR option chain: 80 contracts
+INFO: Saved PLTR chain 2026-02-27: 40 calls, 40 puts
+INFO: Fetched PM option chain: 112 contracts
+INFO: Saved PM chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched PYPL option chain: 104 contracts
+INFO: Saved PYPL chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched QCOM option chain: 90 contracts
+INFO: Saved QCOM chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched RTX option chain: 108 contracts
+INFO: Saved RTX chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched SBUX option chain: 190 contracts
+INFO: Saved SBUX chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched SCHW option chain: 204 contracts
+INFO: Saved SCHW chain 2026-02-27: 102 calls, 102 puts
+INFO: Fetched SO option chain: 198 contracts
+INFO: Saved SO chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched SPG option chain: 18 contracts
+INFO: Saved SPG chain 2026-02-27: 9 calls, 9 puts
+INFO: Fetched T option chain: 134 contracts
+INFO: Saved T chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched TGT option chain: 218 contracts
+INFO: Saved TGT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched TMO option chain: 120 contracts
+INFO: Saved TMO chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched TMUS option chain: 110 contracts
+INFO: Saved TMUS chain 2026-02-27: 55 calls, 55 puts
+INFO: Fetched TSLA option chain: 240 contracts
+INFO: Saved TSLA chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched TXN option chain: 104 contracts
+INFO: Saved TXN chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched UBER option chain: 170 contracts
+INFO: Saved UBER chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched UNH option chain: 134 contracts
+INFO: Saved UNH chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched UNP option chain: 160 contracts
+INFO: Saved UNP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched UPS option chain: 226 contracts
+INFO: Saved UPS chain 2026-02-27: 113 calls, 113 puts
+INFO: Fetched USB option chain: 130 contracts
+INFO: Saved USB chain 2026-02-27: 65 calls, 65 puts
+INFO: Fetched V option chain: 190 contracts
+INFO: Saved V chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched VZ option chain: 134 contracts
+INFO: Saved VZ chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched WFC option chain: 190 contracts
+INFO: Saved WFC chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched WMT option chain: 220 contracts
+INFO: Saved WMT chain 2026-02-27: 110 calls, 110 puts
+INFO: Fetched XOM option chain: 194 contracts
+INFO: Saved XOM chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+INFO: Fetched LOW option chain: 112 contracts
+INFO: Saved LOW chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched MA option chain: 310 contracts
+INFO: Saved MA chain 2026-02-27: 155 calls, 155 puts
+INFO: Fetched MCD option chain: 200 contracts
+INFO: Saved MCD chain 2026-02-27: 100 calls, 100 puts
+INFO: Fetched MDLZ option chain: 122 contracts
+INFO: Saved MDLZ chain 2026-02-27: 61 calls, 61 puts
+INFO: Fetched MDT option chain: 198 contracts
+INFO: Saved MDT chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched MET option chain: 36 contracts
+INFO: Saved MET chain 2026-02-27: 18 calls, 18 puts
+INFO: Fetched META option chain: 400 contracts
+INFO: Saved META chain 2026-02-27: 200 calls, 200 puts
+INFO: Fetched MMM option chain: 100 contracts
+INFO: Saved MMM chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MO option chain: 152 contracts
+INFO: Saved MO chain 2026-02-27: 76 calls, 76 puts
+INFO: Fetched MRK option chain: 224 contracts
+INFO: Saved MRK chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched MS option chain: 100 contracts
+INFO: Saved MS chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MSFT option chain: 240 contracts
+INFO: Saved MSFT chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched NEE option chain: 178 contracts
+INFO: Saved NEE chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched NFLX option chain: 228 contracts
+INFO: Saved NFLX chain 2026-02-27: 114 calls, 114 puts
+INFO: Fetched NKE option chain: 146 contracts
+INFO: Saved NKE chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched NOW option chain: 102 contracts
+INFO: Saved NOW chain 2026-02-27: 51 calls, 51 puts
+INFO: Fetched NVDA option chain: 106 contracts
+INFO: Saved NVDA chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ORCL option chain: 90 contracts
+INFO: Saved ORCL chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched PEP option chain: 154 contracts
+INFO: Saved PEP chain 2026-02-27: 77 calls, 77 puts
+INFO: Fetched PFE option chain: 128 contracts
+INFO: Saved PFE chain 2026-02-27: 64 calls, 64 puts
+INFO: Fetched PG option chain: 168 contracts
+INFO: Saved PG chain 2026-02-27: 84 calls, 84 puts
+INFO: Fetched PLTR option chain: 80 contracts
+INFO: Saved PLTR chain 2026-02-27: 40 calls, 40 puts
+INFO: Fetched PM option chain: 112 contracts
+INFO: Saved PM chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched PYPL option chain: 104 contracts
+INFO: Saved PYPL chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched QCOM option chain: 90 contracts
+INFO: Saved QCOM chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched RTX option chain: 108 contracts
+INFO: Saved RTX chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched SBUX option chain: 190 contracts
+INFO: Saved SBUX chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched SCHW option chain: 204 contracts
+INFO: Saved SCHW chain 2026-02-27: 102 calls, 102 puts
+INFO: Fetched SO option chain: 198 contracts
+INFO: Saved SO chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched SPG option chain: 18 contracts
+INFO: Saved SPG chain 2026-02-27: 9 calls, 9 puts
+INFO: Fetched T option chain: 134 contracts
+INFO: Saved T chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched TGT option chain: 218 contracts
+INFO: Saved TGT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched TMO option chain: 120 contracts
+INFO: Saved TMO chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched TMUS option chain: 110 contracts
+INFO: Saved TMUS chain 2026-02-27: 55 calls, 55 puts
+INFO: Fetched TSLA option chain: 240 contracts
+INFO: Saved TSLA chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched TXN option chain: 104 contracts
+INFO: Saved TXN chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched UBER option chain: 170 contracts
+INFO: Saved UBER chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched UNH option chain: 134 contracts
+INFO: Saved UNH chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched UNP option chain: 160 contracts
+INFO: Saved UNP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched UPS option chain: 226 contracts
+INFO: Saved UPS chain 2026-02-27: 113 calls, 113 puts
+INFO: Fetched USB option chain: 130 contracts
+INFO: Saved USB chain 2026-02-27: 65 calls, 65 puts
+INFO: Fetched V option chain: 190 contracts
+INFO: Saved V chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched VZ option chain: 134 contracts
+INFO: Saved VZ chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched WFC option chain: 190 contracts
+INFO: Saved WFC chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched WMT option chain: 220 contracts
+INFO: Saved WMT chain 2026-02-27: 110 calls, 110 puts
+INFO: Fetched XOM option chain: 194 contracts
+INFO: Saved XOM chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+INFO: Fetched LOW option chain: 112 contracts
+INFO: Saved LOW chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched MA option chain: 310 contracts
+INFO: Saved MA chain 2026-02-27: 155 calls, 155 puts
+INFO: Fetched MCD option chain: 200 contracts
+INFO: Saved MCD chain 2026-02-27: 100 calls, 100 puts
+INFO: Fetched MDLZ option chain: 122 contracts
+INFO: Saved MDLZ chain 2026-02-27: 61 calls, 61 puts
+INFO: Fetched MDT option chain: 198 contracts
+INFO: Saved MDT chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched MET option chain: 36 contracts
+INFO: Saved MET chain 2026-02-27: 18 calls, 18 puts
+INFO: Fetched META option chain: 400 contracts
+INFO: Saved META chain 2026-02-27: 200 calls, 200 puts
+INFO: Fetched MMM option chain: 100 contracts
+INFO: Saved MMM chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MO option chain: 152 contracts
+INFO: Saved MO chain 2026-02-27: 76 calls, 76 puts
+INFO: Fetched MRK option chain: 224 contracts
+INFO: Saved MRK chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched MS option chain: 100 contracts
+INFO: Saved MS chain 2026-02-27: 50 calls, 50 puts
+INFO: Fetched MSFT option chain: 240 contracts
+INFO: Saved MSFT chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched NEE option chain: 178 contracts
+INFO: Saved NEE chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched NFLX option chain: 228 contracts
+INFO: Saved NFLX chain 2026-02-27: 114 calls, 114 puts
+INFO: Fetched NKE option chain: 146 contracts
+INFO: Saved NKE chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched NOW option chain: 102 contracts
+INFO: Saved NOW chain 2026-02-27: 51 calls, 51 puts
+INFO: Fetched NVDA option chain: 106 contracts
+INFO: Saved NVDA chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ORCL option chain: 90 contracts
+INFO: Saved ORCL chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched PEP option chain: 154 contracts
+INFO: Saved PEP chain 2026-02-27: 77 calls, 77 puts
+INFO: Fetched PFE option chain: 128 contracts
+INFO: Saved PFE chain 2026-02-27: 64 calls, 64 puts
+INFO: Fetched PG option chain: 168 contracts
+INFO: Saved PG chain 2026-02-27: 84 calls, 84 puts
+INFO: Fetched PLTR option chain: 80 contracts
+INFO: Saved PLTR chain 2026-02-27: 40 calls, 40 puts
+INFO: Fetched PM option chain: 112 contracts
+INFO: Saved PM chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched PYPL option chain: 104 contracts
+INFO: Saved PYPL chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched QCOM option chain: 90 contracts
+INFO: Saved QCOM chain 2026-02-27: 45 calls, 45 puts
+INFO: Fetched RTX option chain: 108 contracts
+INFO: Saved RTX chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched SBUX option chain: 190 contracts
+INFO: Saved SBUX chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched SCHW option chain: 204 contracts
+INFO: Saved SCHW chain 2026-02-27: 102 calls, 102 puts
+INFO: Fetched SO option chain: 198 contracts
+INFO: Saved SO chain 2026-02-27: 99 calls, 99 puts
+INFO: Fetched SPG option chain: 18 contracts
+INFO: Saved SPG chain 2026-02-27: 9 calls, 9 puts
+INFO: Fetched T option chain: 134 contracts
+INFO: Saved T chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched TGT option chain: 218 contracts
+INFO: Saved TGT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched TMO option chain: 120 contracts
+INFO: Saved TMO chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched TMUS option chain: 110 contracts
+INFO: Saved TMUS chain 2026-02-27: 55 calls, 55 puts
+INFO: Fetched TSLA option chain: 240 contracts
+INFO: Saved TSLA chain 2026-02-27: 120 calls, 120 puts
+INFO: Fetched TXN option chain: 104 contracts
+INFO: Saved TXN chain 2026-02-27: 52 calls, 52 puts
+INFO: Fetched UBER option chain: 170 contracts
+INFO: Saved UBER chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched UNH option chain: 134 contracts
+INFO: Saved UNH chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched UNP option chain: 160 contracts
+INFO: Saved UNP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched UPS option chain: 226 contracts
+INFO: Saved UPS chain 2026-02-27: 113 calls, 113 puts
+INFO: Fetched USB option chain: 130 contracts
+INFO: Saved USB chain 2026-02-27: 65 calls, 65 puts
+INFO: Fetched V option chain: 190 contracts
+INFO: Saved V chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched VZ option chain: 134 contracts
+INFO: Saved VZ chain 2026-02-27: 67 calls, 67 puts
+INFO: Fetched WFC option chain: 190 contracts
+INFO: Saved WFC chain 2026-02-27: 95 calls, 95 puts
+INFO: Fetched WMT option chain: 220 contracts
+INFO: Saved WMT chain 2026-02-27: 110 calls, 110 puts
+INFO: Fetched XOM option chain: 194 contracts
+INFO: Saved XOM chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched SPY option chain: 1954 contracts
+INFO: Saved SPY chain 2026-02-27: 977 calls, 977 puts
+INFO: Fetched AAPL option chain: 160 contracts
+INFO: Saved AAPL chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched ABBV option chain: 106 contracts
+INFO: Saved ABBV chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched ABT option chain: 218 contracts
+INFO: Saved ABT chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched ACN option chain: 120 contracts
+INFO: Saved ACN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched ADBE option chain: 150 contracts
+INFO: Saved ADBE chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AIG option chain: 180 contracts
+INFO: Saved AIG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched AMD option chain: 108 contracts
+INFO: Saved AMD chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched AMGN option chain: 230 contracts
+INFO: Saved AMGN chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched AMT option chain: 40 contracts
+INFO: Saved AMT chain 2026-02-27: 20 calls, 20 puts
+INFO: Fetched AMZN option chain: 120 contracts
+INFO: Saved AMZN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched AVGO option chain: 150 contracts
+INFO: Saved AVGO chain 2026-02-27: 75 calls, 75 puts
+INFO: Fetched AXP option chain: 160 contracts
+INFO: Saved AXP chain 2026-02-27: 80 calls, 80 puts
+INFO: Fetched BA option chain: 140 contracts
+INFO: Saved BA chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched BAC option chain: 120 contracts
+INFO: Saved BAC chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched BK option chain: 14 contracts
+INFO: Saved BK chain 2026-02-27: 7 calls, 7 puts
+INFO: Fetched BKNG option chain: 980 contracts
+INFO: Saved BKNG chain 2026-02-27: 490 calls, 490 puts
+INFO: Fetched BLK option chain: 328 contracts
+INFO: Saved BLK chain 2026-02-27: 164 calls, 164 puts
+INFO: Fetched BMY option chain: 146 contracts
+INFO: Saved BMY chain 2026-02-27: 73 calls, 73 puts
+INFO: Fetched BRK.B option chain: 270 contracts
+INFO: Saved BRK.B chain 2026-02-27: 135 calls, 135 puts
+INFO: Fetched C option chain: 224 contracts
+INFO: Saved C chain 2026-02-27: 112 calls, 112 puts
+INFO: Fetched CAT option chain: 336 contracts
+INFO: Saved CAT chain 2026-02-27: 168 calls, 168 puts
+INFO: Fetched CL option chain: 178 contracts
+INFO: Saved CL chain 2026-02-27: 89 calls, 89 puts
+INFO: Fetched CMCSA option chain: 68 contracts
+INFO: Saved CMCSA chain 2026-02-27: 34 calls, 34 puts
+INFO: Fetched COF option chain: 88 contracts
+INFO: Saved COF chain 2026-02-27: 44 calls, 44 puts
+INFO: Fetched COP option chain: 218 contracts
+INFO: Saved COP chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched COST option chain: 514 contracts
+INFO: Saved COST chain 2026-02-27: 257 calls, 257 puts
+INFO: Fetched CRM option chain: 108 contracts
+INFO: Saved CRM chain 2026-02-27: 54 calls, 54 puts
+INFO: Fetched CSCO option chain: 174 contracts
+INFO: Saved CSCO chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVS option chain: 174 contracts
+INFO: Saved CVS chain 2026-02-27: 87 calls, 87 puts
+INFO: Fetched CVX option chain: 106 contracts
+INFO: Saved CVX chain 2026-02-27: 53 calls, 53 puts
+INFO: Fetched DE option chain: 254 contracts
+INFO: Saved DE chain 2026-02-27: 127 calls, 127 puts
+INFO: Fetched DHR option chain: 114 contracts
+INFO: Saved DHR chain 2026-02-27: 57 calls, 57 puts
+INFO: Fetched DIS option chain: 218 contracts
+INFO: Saved DIS chain 2026-02-27: 109 calls, 109 puts
+INFO: Fetched DUK option chain: 16 contracts
+INFO: Saved DUK chain 2026-02-27: 8 calls, 8 puts
+INFO: Fetched EMR option chain: 182 contracts
+INFO: Saved EMR chain 2026-02-27: 91 calls, 91 puts
+INFO: Fetched FDX option chain: 192 contracts
+INFO: Saved FDX chain 2026-02-27: 96 calls, 96 puts
+INFO: Fetched GD option chain: 170 contracts
+INFO: Saved GD chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GE option chain: 170 contracts
+INFO: Saved GE chain 2026-02-27: 85 calls, 85 puts
+INFO: Fetched GILD option chain: 194 contracts
+INFO: Saved GILD chain 2026-02-27: 97 calls, 97 puts
+INFO: Fetched GM option chain: 164 contracts
+INFO: Saved GM chain 2026-02-27: 82 calls, 82 puts
+INFO: Fetched GOOG option chain: 180 contracts
+INFO: Saved GOOG chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GOOGL option chain: 180 contracts
+INFO: Saved GOOGL chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched GS option chain: 508 contracts
+INFO: Saved GS chain 2026-02-27: 254 calls, 254 puts
+INFO: Fetched HD option chain: 230 contracts
+INFO: Saved HD chain 2026-02-27: 115 calls, 115 puts
+INFO: Fetched HON option chain: 118 contracts
+INFO: Saved HON chain 2026-02-27: 59 calls, 59 puts
+INFO: Fetched IBM option chain: 140 contracts
+INFO: Saved IBM chain 2026-02-27: 70 calls, 70 puts
+INFO: Fetched INTC option chain: 132 contracts
+INFO: Saved INTC chain 2026-02-27: 66 calls, 66 puts
+INFO: Fetched INTU option chain: 96 contracts
+INFO: Saved INTU chain 2026-02-27: 48 calls, 48 puts
+INFO: Fetched ISRG option chain: 300 contracts
+INFO: Saved ISRG chain 2026-02-27: 150 calls, 150 puts
+INFO: Fetched JNJ option chain: 112 contracts
+INFO: Saved JNJ chain 2026-02-27: 56 calls, 56 puts
+INFO: Fetched JPM option chain: 180 contracts
+INFO: Saved JPM chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched KO option chain: 180 contracts
+INFO: Saved KO chain 2026-02-27: 90 calls, 90 puts
+INFO: Fetched LIN option chain: 120 contracts
+INFO: Saved LIN chain 2026-02-27: 60 calls, 60 puts
+INFO: Fetched LLY option chain: 472 contracts
+INFO: Saved LLY chain 2026-02-27: 236 calls, 236 puts
+INFO: Fetched LMT option chain: 298 contracts
+INFO: Saved LMT chain 2026-02-27: 149 calls, 149 puts
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.
+Snapshot job already running; skipping overlapping launch.

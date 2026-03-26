@@ -111,6 +111,140 @@ def parse_occ_symbol(sym: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Snapshot storage helpers
+# ---------------------------------------------------------------------------
+
+def _as_utc_snapshot_str(ts: pd.Timestamp | datetime | None = None) -> str:
+    """Return a second-granularity UTC timestamp string for snapshot rows."""
+    ts = pd.Timestamp.now(tz="UTC") if ts is None else pd.Timestamp(ts)
+    if ts.tzinfo is None:
+        ts = ts.tz_localize("UTC")
+    else:
+        ts = ts.tz_convert("UTC")
+    return ts.floor("s").strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _coerce_snapshot_time_column(df: pd.DataFrame, *, fallback_ts: str) -> pd.DataFrame:
+    """Normalize snapshot_time and backfill it for legacy daily-overwrite files."""
+    out = df.copy()
+    if "snapshot_time" not in out.columns:
+        out["snapshot_time"] = fallback_ts
+        return out
+    parsed = pd.to_datetime(out["snapshot_time"], utc=True, errors="coerce")
+    out["snapshot_time"] = parsed.dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    out["snapshot_time"] = out["snapshot_time"].fillna(fallback_ts)
+    return out
+
+
+def _append_intraday_snapshot_parquet(path: Path, new_df: pd.DataFrame) -> tuple[int, int]:
+    """
+    Append the latest snapshot rows into a single same-day parquet.
+
+    This keeps one file per day/side/symbol while preserving every intraday
+    scrape as distinct rows keyed by (snapshot_time, contractSymbol).
+    """
+    if new_df.empty:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return 0, 0
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frames = []
+    if path.exists():
+        existing = pd.read_parquet(path)
+        if not existing.empty:
+            existing_ts = _as_utc_snapshot_str(pd.Timestamp.utcfromtimestamp(path.stat().st_mtime))
+            existing = _coerce_snapshot_time_column(existing, fallback_ts=existing_ts)
+            frames.append(existing)
+
+    current_ts = _as_utc_snapshot_str()
+    current = _coerce_snapshot_time_column(new_df, fallback_ts=current_ts)
+    frames.append(current)
+
+    merged = pd.concat(frames, ignore_index=True, sort=False)
+    if {"snapshot_time", "contractSymbol"}.issubset(merged.columns):
+        merged = merged.drop_duplicates(subset=["snapshot_time", "contractSymbol"], keep="last")
+        merged = merged.sort_values(["snapshot_time", "contractSymbol"]).reset_index(drop=True)
+    merged.to_parquet(path, index=False)
+    snapshot_count = int(merged["snapshot_time"].nunique()) if "snapshot_time" in merged.columns else 0
+    return len(merged), snapshot_count
+
+
+def _extract_symbol_payload(response, symbol: str):
+    """Return a symbol-specific payload from an Alpaca multi-symbol response."""
+    if response is None:
+        return None
+    getter = getattr(response, "get", None)
+    if callable(getter):
+        payload = getter(symbol)
+        if payload is not None:
+            return payload
+    try:
+        return response[symbol]
+    except Exception:
+        pass
+    return response
+
+
+def _fetch_latest_underlying_snapshot(underlying_symbol: str, fallback_spot: float) -> dict:
+    """
+    Capture the underlying stock at the same instant as the option snapshot.
+
+    For intraday delta-gamma-theta tests, daily close is not enough. We store
+    the latest stock bid/ask/trade and a best-effort spot proxy beside every
+    option row so the notebook can compute intraday dS.
+    """
+    from alpaca.data.requests import StockLatestQuoteRequest, StockLatestTradeRequest
+
+    quote = None
+    trade = None
+    stock_client = _get_stock_client()
+    try:
+        quote_resp = stock_client.get_stock_latest_quote(
+            StockLatestQuoteRequest(symbol_or_symbols=[underlying_symbol]),
+        )
+        quote = _extract_symbol_payload(quote_resp, underlying_symbol)
+    except Exception as exc:
+        logger.debug("Latest quote fetch failed for %s: %s", underlying_symbol, exc)
+    try:
+        trade_resp = stock_client.get_stock_latest_trade(
+            StockLatestTradeRequest(symbol_or_symbols=[underlying_symbol]),
+        )
+        trade = _extract_symbol_payload(trade_resp, underlying_symbol)
+    except Exception as exc:
+        logger.debug("Latest trade fetch failed for %s: %s", underlying_symbol, exc)
+
+    bid = getattr(quote, "bid_price", None)
+    ask = getattr(quote, "ask_price", None)
+    last = getattr(trade, "price", None)
+    if bid is not None:
+        bid = float(bid)
+    if ask is not None:
+        ask = float(ask)
+    if last is not None:
+        last = float(last)
+
+    if bid and ask and bid > 0 and ask > 0 and ask >= bid:
+        spot = 0.5 * (bid + ask)
+        source = "stock_quote_mid"
+    elif last and last > 0:
+        spot = last
+        source = "stock_trade"
+    else:
+        spot = float(fallback_spot)
+        source = "daily_close_fallback"
+
+    return {
+        "snapshot_time": _as_utc_snapshot_str(),
+        "underlying_symbol": underlying_symbol,
+        "underlying_bid": bid,
+        "underlying_ask": ask,
+        "underlying_last": last,
+        "underlying_spot": float(spot),
+        "underlying_spot_source": source,
+    }
+
+
+# ---------------------------------------------------------------------------
 # 1.  Stock daily bars  (SPY or any symbol)
 # ---------------------------------------------------------------------------
 
@@ -192,6 +326,7 @@ def fetch_current_chain(
     spot: float | None = None,
     dte_min: int = TARGET_MIN_DTE,
     dte_max: int = TARGET_MAX_DTE,
+    strike_pct_range: float = 0.15,
     save: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -211,6 +346,8 @@ def fetch_current_chain(
             px = pd.read_parquet(price_file)
             spot = float(px["close"].iloc[-1])
     spot = spot or (550.0 if underlying_symbol == "SPY" else 200.0)
+    underlying_ctx = _fetch_latest_underlying_snapshot(underlying_symbol, fallback_spot=float(spot))
+    spot = float(underlying_ctx["underlying_spot"])
 
     exp_gte = (today + timedelta(days=dte_min)).isoformat()
     exp_lte = (today + timedelta(days=dte_max)).isoformat()
@@ -219,8 +356,8 @@ def fetch_current_chain(
         underlying_symbol=underlying_symbol,
         expiration_date_gte=exp_gte,
         expiration_date_lte=exp_lte,
-        strike_price_gte=spot * 0.85,
-        strike_price_lte=spot * 1.15,
+        strike_price_gte=spot * (1.0 - strike_pct_range),
+        strike_price_lte=spot * (1.0 + strike_pct_range),
     )
     chain = client.get_option_chain(request)
     logger.info("Fetched %s option chain: %d contracts", underlying_symbol, len(chain))
@@ -253,6 +390,7 @@ def fetch_current_chain(
             "theta": theta,
             "vega": vega,
             "data_source": "alpaca_snapshot",
+            **underlying_ctx,
         })
 
     df = pd.DataFrame(rows)
@@ -263,11 +401,21 @@ def fetch_current_chain(
         chain_dir = OPTION_CHAINS_DIR if underlying_symbol == "SPY" else OPTION_CHAINS_DIR / underlying_symbol
         chain_dir.mkdir(parents=True, exist_ok=True)
         date_str = today.isoformat()
-        calls.to_parquet(chain_dir / f"calls_{date_str}.parquet", index=False)
-        puts.to_parquet(chain_dir / f"puts_{date_str}.parquet", index=False)
+        calls_path = chain_dir / f"calls_{date_str}.parquet"
+        puts_path = chain_dir / f"puts_{date_str}.parquet"
+        call_rows, call_snapshots = _append_intraday_snapshot_parquet(calls_path, calls)
+        put_rows, put_snapshots = _append_intraday_snapshot_parquet(puts_path, puts)
         logger.info(
-            "Saved %s chain %s: %d calls, %d puts",
-            underlying_symbol, date_str, len(calls), len(puts),
+            "Saved %s chain %s @ %s: %d calls, %d puts (stored rows: %d/%d, snapshots today: %d/%d)",
+            underlying_symbol,
+            date_str,
+            underlying_ctx["snapshot_time"],
+            len(calls),
+            len(puts),
+            call_rows,
+            put_rows,
+            call_snapshots,
+            put_snapshots,
         )
     return calls, puts
 
