@@ -1,8 +1,8 @@
 # Core optimization and backtest
-cvxportfolio>=1.5.0
-cvxpy>=1.4.0
-pandas>=1.4.0
-numpy>=1.20.0
+cvxportfolio>=1.5.1
+cvxpy>=1.9.0
+pandas>=2.0.0
+numpy>=1.24.0
 
 # Data source
 alpaca-py>=0.30.0
@@ -11,11 +11,17 @@ python-dotenv>=1.0.0
 # Risk-neutral density / fitting
 scipy>=1.9.0
 
+# Covariance shrinkage (Ledoit-Wolf)
+scikit-learn>=1.0.0
+
 # Parquet I/O
 pyarrow>=10.0.0
 
 # Plotting
 matplotlib>=3.5.0
+
+# cvxportfolio FRED data caching
+requests-cache>=0.9.0
 
 # Notebooks
 jupyter>=1.0.0

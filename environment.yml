@@ -2,12 +2,14 @@
 #   conda env create -f environment.yml
 # Activate with:
 #   conda activate cvx_options
+# Update existing env with:
+#   conda env update -f environment.yml --prune
 name: cvx_options
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.10
+  - python=3.12
   - pip
   - pip:
     - -r requirements.txt

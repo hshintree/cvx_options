@@ -1,0 +1,13 @@
+{
+  "gamma": 10.0,
+  "cov_halflife": 21,
+  "mu_halflife": 252,
+  "max_wt": 0.1,
+  "mu_method": "ewma",
+  "mu_shrinkage": 0.75,
+  "use_mpo": false,
+  "rebal_freq": "quarterly",
+  "oos_sharpe": 21.068289431308134,
+  "oos_ann_ret": 824945.3606879427,
+  "oos_max_dd": 0.0
+}
