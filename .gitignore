@@ -12,3 +12,5 @@ build/
 .pytest_cache/
 *.so
 .DS_Store
+.claude/
+website/

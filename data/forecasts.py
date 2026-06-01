@@ -716,6 +716,27 @@ def _bs_theta(S: float, K: float, r: float, T: float, sigma: float, is_call: boo
     return float(term1 + r * K * np.exp(-r * T) * norm.cdf(-d2))
 
 
+def _bs_vega(S: float, K: float, r: float, T: float, sigma: float) -> float:
+    """Vega: ∂V/∂σ, in price units per 1.00 change in volatility."""
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    return float(S * np.sqrt(T) * norm.pdf(d1))
+
+
+def _bs_rho(S: float, K: float, r: float, T: float, sigma: float, is_call: bool) -> float:
+    """Rho: ∂V/∂r, in price units per 1.00 change in the annual rate."""
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    sqrtT = np.sqrt(T)
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrtT)
+    d2 = d1 - sigma * sqrtT
+    scale = K * T * np.exp(-r * T)
+    if is_call:
+        return float(scale * norm.cdf(d2))
+    return float(-scale * norm.cdf(-d2))
+
+
 # ---------------------------------------------------------------------------
 # Fallback covariance (instead of identity)
 # ---------------------------------------------------------------------------
